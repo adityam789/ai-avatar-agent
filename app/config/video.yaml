@@ -1,0 +1,8 @@
+format: vertical
+
+avatar:
+  height_ratio: 0.55
+
+brainrot:
+  enabled: true
+  type: subway

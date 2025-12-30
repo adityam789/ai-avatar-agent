@@ -1,0 +1,3 @@
+[submodule "models/sad_talker"]
+	path = models/sad_talker
+	url = https://github.com/OpenTalker/SadTalker.git
