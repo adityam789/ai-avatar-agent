@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from ai_avatar.config import Config
+from ai_avatar.errors import ConfigError
 from ai_avatar.research.collectors.base import SourceCollector, safe_collect
 from ai_avatar.research.collectors.fixture import FixtureCollector
 from ai_avatar.research.collectors.reddit import RedditCollector, reddit_creds_from_env
@@ -18,6 +19,8 @@ from ai_avatar.research.collectors.search_providers import (
 from ai_avatar.research.collectors.web_search import WebSearchCollector
 
 log = logging.getLogger(__name__)
+
+KNOWN_COLLECTORS = ("rss", "web_search", "reddit")
 
 
 def _search_provider(cfg: Config) -> SearchProvider | None:
@@ -54,6 +57,9 @@ def build_collectors(cfg: Config) -> list[SourceCollector]:
     (``<fixtures_dir>/<collector name>.json``), so no network or keys are involved.
     """
     names = cfg.research.collectors
+    unknown = [name for name in names if name not in KNOWN_COLLECTORS]
+    if unknown:
+        raise ConfigError(f"unknown research collector {unknown[0]!r}: choose from {', '.join(KNOWN_COLLECTORS)}")
     if cfg.offline:
         fixtures = cfg.resolve(cfg.research.fixtures_dir)
         return [FixtureCollector(name, fixtures / f"{name}.json") for name in names]

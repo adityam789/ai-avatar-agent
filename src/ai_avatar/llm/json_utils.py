@@ -4,34 +4,49 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 
-_FENCE = re.compile(r"```(?:json)?", re.IGNORECASE)
 _TRAILING_COMMA = re.compile(r",\s*([}\]])")
 
 
-def _first_object(text: str) -> dict | None:
-    """The first ``{...}`` in ``text`` that decodes as a JSON object; prose around it is ignored."""
+def _objects(text: str) -> Iterator[dict]:
+    """JSON objects found in ``text``, left to right, outermost first.
+
+    Code fences and prose around an object need no special handling: decoding starts at each ``{``.
+    At every ``{`` the text is tried as-is first (removing "trailing commas" could change commas inside
+    strings); only if that fails is the trailing-comma repair applied, so a damaged outer object is still
+    preferred over the valid objects nested inside it.
+    """
     decoder = json.JSONDecoder()
     start = text.find("{")
     while start != -1:
-        try:
-            value, _ = decoder.raw_decode(text, start)
+        tail = text[start:]
+        end = start + 1
+        for repaired, candidate in ((False, tail), (True, _TRAILING_COMMA.sub(r"\1", tail))):
+            try:
+                value, length = decoder.raw_decode(candidate)
+            except json.JSONDecodeError:
+                continue
             if isinstance(value, dict):
-                return value
-        except json.JSONDecodeError:
-            pass
-        start = text.find("{", start + 1)
-    return None
+                yield value
+                if not repaired:
+                    end = start + length  # skip the objects nested inside this one
+                break
+        start = text.find("{", end)
 
 
-def extract_json_object(text: str) -> dict:
+def extract_json_object(text: str, want_key: str | None = None) -> dict:
     """Parse the JSON object in ``text``, tolerating code fences, surrounding prose and trailing commas.
 
+    If ``want_key`` is given, the first object containing that key wins (the reply may hold other objects,
+    such as a note before the answer); otherwise the first object found is returned.
     Raises ``ValueError`` if no JSON object can be found.
     """
-    text = _FENCE.sub("", text).strip()
-    # Try the text as-is first: removing "trailing commas" could change commas inside strings.
-    found = _first_object(text) or _first_object(_TRAILING_COMMA.sub(r"\1", text))
-    if found is None:
+    first = None
+    for obj in _objects(text):
+        if want_key is None or want_key in obj:
+            return obj
+        first = first if first is not None else obj
+    if first is None:
         raise ValueError("no JSON object found in text")
-    return found
+    return first

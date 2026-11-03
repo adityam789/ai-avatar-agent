@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import asdict, replace
@@ -31,10 +33,14 @@ class ResearchCache:
         self.clock = clock
         self._entries: dict[str, tuple[float, ResearchBundle]] = {}
 
+    def _is_fresh(self, stored_at: float, now: float) -> bool:
+        """Younger than the TTL; an entry from the "future" (clock moved backwards) is not trusted."""
+        return 0 <= now - stored_at < self.ttl_seconds
+
     def find(self, topic: str) -> ResearchBundle | None:
         """The stored bundle (marked ``freshness="cached"``), or None if absent or expired."""
         entry = self._entries.get(topic)
-        if entry is None or self.clock() - entry[0] >= self.ttl_seconds:
+        if entry is None or not self._is_fresh(entry[0], self.clock()):
             return None
         return replace(entry[1], freshness="cached")
 
@@ -69,15 +75,24 @@ class DiskResearchCache(ResearchCache):
         except (OSError, ValueError, KeyError, TypeError) as exc:
             log.warning("ignoring unreadable research cache file %s (%s)", path, type(exc).__name__)
             return None
-        if bundle.topic != topic or now - stored_at >= self.ttl_seconds:
+        if bundle.topic != topic or not self._is_fresh(stored_at, now):
             return None
         return replace(bundle, freshness="cached")
 
     def store(self, bundle: ResearchBundle) -> None:
         now = self.clock()
         path = self._path(bundle.topic, now)
+        tmp_name = None
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"stored_at": now, "bundle": asdict(bundle)}, indent=2), encoding="utf-8")
+            # Write a temp file next to the target, then rename: readers never see a half-written file.
+            with tempfile.NamedTemporaryFile(
+                "w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False
+            ) as tmp:
+                tmp_name = tmp.name
+                json.dump({"stored_at": now, "bundle": asdict(bundle)}, tmp, indent=2)
+            os.replace(tmp_name, path)
         except OSError as exc:  # a read-only cache directory must not fail the run
             log.warning("could not write research cache file %s (%s)", path, type(exc).__name__)
+            if tmp_name:
+                Path(tmp_name).unlink(missing_ok=True)

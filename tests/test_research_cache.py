@@ -1,6 +1,8 @@
 """Research cache: TTL, expiry, persistence, corrupt files."""
 
 import json
+import os
+from pathlib import Path
 
 import pytest
 
@@ -55,6 +57,14 @@ def test_entry_is_served_just_before_ttl_and_never_after(make_cache):
     assert cache.find("Black Holes") is None
 
 
+def test_clock_moved_backwards_is_a_miss_not_a_hit(make_cache):
+    clock = Clock()
+    cache = make_cache(clock=clock)
+    cache.store(bundle())
+    clock.now = DAY0 - 60  # same UTC date, but "before" the entry was stored
+    assert cache.find("Black Holes") is None
+
+
 def test_zero_ttl_disables_the_cache(make_cache):
     cache = make_cache(ttl_hours=0)
     cache.store(bundle())
@@ -104,3 +114,29 @@ def test_disk_cache_rejects_a_file_for_a_different_topic_with_same_slug(tmp_path
     cache = DiskResearchCache(tmp_path, 24, Clock())
     cache.store(bundle("Black Holes"))
     assert cache.find("black holes!") is None  # same slug, different topic text
+
+
+def test_failed_write_leaves_the_previous_cache_file_intact(tmp_path, monkeypatch, caplog):
+    cache = DiskResearchCache(tmp_path, 24, Clock())
+    cache.store(bundle())
+    path = next(tmp_path.iterdir())
+    before = path.read_text()
+
+    def failing_replace(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+    cache.store(ResearchBundle("Black Holes", ["new fact"], "fresh", ["rss"]))
+    assert path.read_text() == before  # the old file was never truncated
+    assert list(tmp_path.iterdir()) == [path]  # and no temp file is left behind
+    assert "could not write research cache file" in caplog.text
+
+
+def test_store_writes_through_a_temp_file_in_the_same_directory(tmp_path, monkeypatch):
+    moves = []
+    real_replace = os.replace
+    monkeypatch.setattr(os, "replace", lambda src, dst: (moves.append((Path(src), Path(dst))), real_replace(src, dst)))
+    DiskResearchCache(tmp_path, 24, Clock()).store(bundle())
+    (src, dst), = moves
+    assert src.parent == dst.parent == tmp_path and src != dst and src.suffix == ".tmp"
+    assert [p.name for p in tmp_path.iterdir()] == [dst.name]

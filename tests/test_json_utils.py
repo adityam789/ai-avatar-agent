@@ -24,6 +24,24 @@ def test_commas_inside_strings_survive_when_json_is_valid():
     assert extract_json_object('{"facts": ["a,]", "b,}"]}') == {"facts": ["a,]", "b,}"]}
 
 
+def test_damaged_outer_object_beats_a_valid_inner_one():
+    reply = '{"facts": ["a", "b",], "meta": {"x": 1}}'
+    assert extract_json_object(reply) == {"facts": ["a", "b"], "meta": {"x": 1}}
+    assert extract_json_object(reply, want_key="facts")["facts"] == ["a", "b"]
+
+
+def test_want_key_prefers_the_object_that_has_it():
+    reply = '{"note": "x"}\n{"facts": ["a"]}'
+    assert extract_json_object(reply, want_key="facts") == {"facts": ["a"]}
+    assert extract_json_object(reply) == {"note": "x"}  # without a key: first object
+    assert extract_json_object('{"note": "x"}', want_key="facts") == {"note": "x"}  # no match: caller validates
+
+
+def test_code_fences_inside_strings_are_left_alone():
+    reply = '```json\n{"facts": ["use ```json fences", "b"]}\n```'
+    assert extract_json_object(reply) == {"facts": ["use ```json fences", "b"]}
+
+
 @pytest.mark.parametrize("reply", ["", "no json here", "[1, 2, 3]", '{"facts": [', "{broken: yes}"])
 def test_raises_value_error_when_nothing_parses(reply):
     with pytest.raises(ValueError):

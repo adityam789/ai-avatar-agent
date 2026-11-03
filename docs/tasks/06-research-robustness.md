@@ -77,3 +77,19 @@ Research survives dead services. Each source is optional, failures are logged no
 ### Open questions
 - Keep DuckDuckGo (unofficial scraping via `ddgs`, can be rate limited) as default, or ship Brave Search (needs `BRAVE_API_KEY`)? Providers are one small class each.
 - Should a cache hit still require an LLM key? Today `run_research` builds the LLM before checking the cache.
+
+### Review round 1 fixes
+- `safe_collect(collector, topic, timeout)` runs `collect` in a daemon thread and gives up after `research.timeout_seconds` of wall-clock time
+  (warning, returns `[]`; the straggler cannot block the run or interpreter exit). `ResearchAgent(..., collector_timeout=)` / `run_research` pass it on.
+  DuckDuckGo's timeout is `max(1, ceil(timeout))` instead of `int()` (0.5 became 0).
+- `safe_collect` and the agent no longer assume a collector sets `name` (`collector_name()` falls back to the class name).
+- `extract_json_object(text, want_key=None)`: objects are tried outermost-first with trailing-comma repair per object, and the first one containing
+  `want_key` wins (the aggregator passes `"facts"`). Code-fence stripping was dropped (fences outside the object are skipped by the scan, and fences
+  inside strings are no longer damaged).
+- Disk cache writes go through a temp file + `os.replace`; an entry whose stored time is in the future (clock moved backwards) is a miss in both caches.
+- Aggregator prompt: whitespace (newlines included) in titles, texts and the topic is collapsed, so snippets cannot forge `TASK:` / `Title: ` lines.
+- RSS: the topic filter runs before the per-feed cap; stopword set extended ("is", "can", "do", "what", ...) and now compared in folded form
+  (previously "does" was folded to "doe" and never matched). `build_collectors` raises `ConfigError` for unknown collector names.
+- Dedup: by normalised URL when present, otherwise by `(source, title)`.
+- Tests: new cases for every item above, including a hung collector (0.2 s timeout), a nameless collector with an env secret, atomic cache write and
+  backwards clock. Verified they fail against the pre-fix source (22 failures) and pass now.

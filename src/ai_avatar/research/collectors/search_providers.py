@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,7 +46,7 @@ class DuckDuckGoProvider:
             from ddgs import DDGS
         except ImportError:
             raise ResearchError("the 'ddgs' package is not installed: pip install 'ai-avatar-agent[search]'") from None
-        hits = DDGS(timeout=int(self.timeout)).text(query, max_results=n)
+        hits = DDGS(timeout=max(1, math.ceil(self.timeout))).text(query, max_results=n)
         return [SearchResult(h.get("title", ""), h.get("body", ""), h.get("href", "")) for h in hits if h.get("title")]
 
 

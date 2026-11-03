@@ -20,13 +20,18 @@ RSS_FEEDS = [
     "https://techcrunch.com/feed/",
     "https://news.ycombinator.com/rss",
 ]
-ENTRIES_PER_FEED = 5  # newest entries inspected per feed
-_STOPWORDS = {"the", "and", "for", "how", "why", "what", "with", "about", "are", "does", "of", "in", "on", "to", "a"}
+ENTRIES_PER_FEED = 5  # most snippets taken from one feed (newest matching entries)
 
 
 def _words(text: str) -> set[str]:
     """Lower-case word set with a trailing plural 's' removed ("computers" matches "computer")."""
     return {w[:-1] if len(w) > 3 and w.endswith("s") else w for w in re.findall(r"\w+", text.lower())}
+
+
+# Question words and fillers that say nothing about the subject ("what is X", "can X do Y"); folded like _words().
+_STOPWORDS = _words(
+    "a about and are can do does for how in is of on the to was what when where which who why will with"
+)
 
 
 def matches_topic(topic: str, text: str) -> bool:
@@ -61,7 +66,8 @@ class RSSCollector(SourceCollector):
             except requests.RequestException as exc:
                 log.warning("rss feed %s skipped: %s", feed_url, scrub(exc))
                 continue
-            for entry in feedparser.parse(resp.content).entries[:ENTRIES_PER_FEED]:
+            from_feed = 0
+            for entry in feedparser.parse(resp.content).entries:
                 title = entry.get("title", "") or ""
                 summary = _plain(entry.get("summary", "") or "")
                 content = " ".join(_plain(c.get("value", "")) for c in entry.get("content", []) or [])
@@ -69,4 +75,7 @@ class RSSCollector(SourceCollector):
                     continue
                 snippets.append(RawSnippet(self.name, title, summary[:1000], entry.get("link", ""),
                                            {"published": entry.get("published")}))
+                from_feed += 1
+                if from_feed == ENTRIES_PER_FEED:
+                    break
         return snippets

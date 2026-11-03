@@ -2,6 +2,8 @@
 
 import json
 import logging
+import threading
+import time
 
 import pytest
 import requests
@@ -51,6 +53,53 @@ def test_failing_collector_is_isolated_and_remaining_sources_are_used(caplog):
         bundle = agent_for([bad, good]).run("owls")
     assert bundle.facts == ["Owl facts"] and bundle.sources == ["rss"] and bundle.freshness == "fresh"
     assert "reddit collector failed" in caplog.text
+
+
+def test_hung_collector_is_cut_off_and_the_others_still_contribute(caplog):
+    class Hangs(SourceCollector):
+        name = "web_search"
+        release = threading.Event()
+
+        def collect(self, topic):
+            self.release.wait(10)
+            return [RawSnippet("web_search", "too late", "", "https://late.test")]
+
+    good = Fixed("rss", [RawSnippet("rss", "Owl facts", "text", "https://a.test/owls")])
+    agent = ResearchAgent([Hangs(), good], LLMAggregator(StubLLM()), collector_timeout=0.2)
+    start = time.monotonic()
+    with caplog.at_level(logging.WARNING):
+        bundle = agent.run("owls")
+    elapsed = time.monotonic() - start
+    Hangs.release.set()
+    assert elapsed < 3
+    assert bundle.facts == ["Owl facts"] and bundle.sources == ["rss"]
+    assert "web_search collector timed out" in caplog.text
+
+
+def test_run_research_passes_the_configured_timeout_to_every_collector(tmp_path, monkeypatch):
+    cfg = load_config(
+        environ={
+            "AI_AVATAR__research__cache_dir": str(tmp_path / "cache"),
+            "AI_AVATAR__research__timeout_seconds": "0.2",
+            "AI_AVATAR__research__collectors": "[rss]",
+        }
+    )
+    release = threading.Event()
+
+    class Hangs(SourceCollector):
+        name = "rss"
+
+        def collect(self, topic):
+            release.wait(10)
+            return []
+
+    monkeypatch.setattr(research, "build_llm", lambda cfg: StubLLM())
+    monkeypatch.setattr(research, "build_collectors", lambda cfg: [Hangs()])
+    start = time.monotonic()
+    with pytest.raises(ResearchError, match="no snippets collected"):
+        run_research("owls", cfg)
+    release.set()
+    assert time.monotonic() - start < 3
 
 
 def test_all_collectors_failing_raises_a_clear_research_error(caplog):

@@ -17,7 +17,8 @@ def run_research(topic: str, cfg: Config) -> ResearchBundle:
     research = cfg.research
     cache = None if cfg.offline else DiskResearchCache(cfg.resolve(research.cache_dir), research.cache_ttl_hours)
     aggregator = LLMAggregator(build_llm(cfg), research.max_snippet_chars)
-    return ResearchAgent(build_collectors(cfg), aggregator, cache).run(topic)
+    agent = ResearchAgent(build_collectors(cfg), aggregator, cache, research.timeout_seconds)
+    return agent.run(topic)
 
 
 __all__ = ["run_research", "ResearchAgent", "LLMAggregator", "ResearchCache", "DiskResearchCache", "ResearchBundle"]

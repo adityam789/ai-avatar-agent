@@ -2,13 +2,15 @@
 
 import logging
 import sys
+import threading
+import time
 import types
 
 import pytest
 import requests
 
 from ai_avatar.config import load_config
-from ai_avatar.errors import ResearchError
+from ai_avatar.errors import ConfigError, ResearchError
 from ai_avatar.research.collectors import build_collectors
 from ai_avatar.research.collectors.base import SourceCollector, safe_collect
 from ai_avatar.research.collectors.fixture import FixtureCollector
@@ -68,6 +70,68 @@ def test_safe_collect_passes_results_through():
     assert [s.title for s in safe_collect(Fine(), "owls")] == ["owls"]
 
 
+class Nameless(SourceCollector):
+    """A subclass that forgot to set ``name`` (it is only an annotation on the base class)."""
+
+    def __init__(self, exc):
+        self.exc = exc
+
+    def collect(self, topic):
+        raise self.exc
+
+
+def test_safe_collect_survives_a_collector_without_a_name(caplog, monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", SECRET)
+    with caplog.at_level(logging.WARNING):
+        assert safe_collect(Nameless(RuntimeError(f"bad key {SECRET}")), "owls") == []
+    assert "Nameless collector failed" in caplog.text and "RuntimeError" in caplog.text
+    assert SECRET not in caplog.text
+
+
+class Hangs(SourceCollector):
+    name = "hangs"
+
+    def __init__(self):
+        self.release = threading.Event()
+        self.started = threading.Event()
+
+    def collect(self, topic):
+        self.started.set()
+        self.release.wait(10)
+        return [RawSnippet("hangs", "too late", "")]
+
+
+def test_safe_collect_enforces_a_wall_clock_timeout(caplog):
+    hung = Hangs()
+    start = time.monotonic()
+    with caplog.at_level(logging.WARNING):
+        assert safe_collect(hung, "owls", timeout=0.2) == []
+    assert time.monotonic() - start < 2
+    assert hung.started.is_set() and "hangs collector timed out after 0.2s" in caplog.text
+    hung.release.set()  # let the abandoned worker finish
+
+
+def test_safe_collect_without_timeout_waits_for_the_collector():
+    class Slow(SourceCollector):
+        name = "slow"
+
+        def collect(self, topic):
+            time.sleep(0.2)
+            return [RawSnippet("slow", topic, "")]
+
+    assert [s.title for s in safe_collect(Slow(), "owls")] == ["owls"]
+    assert [s.title for s in safe_collect(Slow(), "owls", timeout=5)] == ["owls"]
+
+
+def test_abandoned_collector_runs_in_a_daemon_thread():
+    hung = Hangs()
+    safe_collect(hung, "owls", timeout=0.1)
+    worker = next(t for t in threading.enumerate() if t.name == "collect-hangs")
+    assert worker.daemon  # cannot keep the interpreter alive at exit
+    hung.release.set()
+    worker.join(2)
+
+
 # --- RSS ---
 
 
@@ -81,6 +145,9 @@ def test_safe_collect_passes_results_through():
         ("black hole", "Black holes: new images", True),  # plural
         ("quantum computing", "Computing news only", False),  # all words needed
         ("what are black holes", "Black holes: new images", True),  # stopwords ignored
+        ("is rust fast", "Rust is fast", True),
+        ("can rust do async", "Async Rust news", True),  # "can", "do" are stopwords
+        ("what does rust do", "Rust 2.0 is out", True),  # "does" must not be folded to "doe" and survive
         ("the", "the end", True),  # only stopwords: fall back to the words themselves
         ("", "anything", False),
     ],
@@ -127,6 +194,22 @@ def test_rss_filters_by_whole_word_strips_html_and_sets_timeout(monkeypatch):
     first = snippets[0]
     assert first.text == "The Rust team shipped it & more" and first.url == "https://a.test/rust"
     assert first.source == "rss"
+
+
+def test_rss_filters_before_capping_so_older_matching_entries_are_found(monkeypatch):
+    unrelated = "".join(f"<item><title>Gardening {i}</title><description>x</description></item>" for i in range(8))
+    old_hit = "<item><title>Old Rust story</title><link>https://a.test/old</link><description>x</description></item>"
+    feed = f'<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>{unrelated}{old_hit}</channel></rss>'
+    monkeypatch.setattr(requests, "get", lambda url, timeout=None, **kw: FakeResponse(feed.encode()))
+    assert [s.title for s in RSSCollector(["https://x.test/f"]).collect("rust")] == ["Old Rust story"]
+
+
+def test_rss_takes_at_most_entries_per_feed_matching_items(monkeypatch):
+    items = "".join(f"<item><title>Rust {i}</title><description>x</description></item>" for i in range(9))
+    feed = f'<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>{items}</channel></rss>'
+    monkeypatch.setattr(requests, "get", lambda url, timeout=None, **kw: FakeResponse(feed.encode()))
+    snippets = RSSCollector(["https://x.test/f"]).collect("rust")
+    assert [s.title for s in snippets] == [f"Rust {i}" for i in range(5)]
 
 
 def test_rss_one_dead_feed_does_not_lose_the_others(monkeypatch, caplog):
@@ -214,6 +297,23 @@ def test_duckduckgo_provider_uses_ddgs(monkeypatch):
     monkeypatch.setitem(sys.modules, "ddgs", types.SimpleNamespace(DDGS=FakeDDGS))
     assert DuckDuckGoProvider(timeout=7).search("owls", 3) == [SearchResult("T", "B", "https://h")]
     assert calls == {"timeout": 7, "query": "owls", "max_results": 3}
+
+
+def test_duckduckgo_timeout_is_rounded_up_never_to_zero(monkeypatch):
+    calls = {}
+
+    class FakeDDGS:
+        def __init__(self, timeout=None, **kw):
+            calls["timeout"] = timeout
+
+        def text(self, query, max_results=None, **kw):
+            return []
+
+    monkeypatch.setitem(sys.modules, "ddgs", types.SimpleNamespace(DDGS=FakeDDGS))
+    DuckDuckGoProvider(timeout=0.5).search("owls", 3)
+    assert calls["timeout"] == 1
+    DuckDuckGoProvider(timeout=2.2).search("owls", 3)
+    assert calls["timeout"] == 3
 
 
 def test_duckduckgo_without_ddgs_installed_explains_the_extra(monkeypatch):
@@ -312,6 +412,21 @@ def test_google_cse_provider_needs_keys_else_web_search_is_skipped(monkeypatch):
 def test_collector_list_in_config_is_respected():
     assert names(build_collectors(make_cfg(research__collectors="[rss]"))) == ["rss"]
     assert build_collectors(make_cfg(research__collectors="[]")) == []
+
+
+def test_unknown_collector_name_is_a_clear_config_error():
+    cfg = make_cfg()
+    cfg.research.collectors = ["rss", "twitter"]  # config validation normally rejects this; the registry must too
+    with pytest.raises(ConfigError, match="unknown research collector 'twitter'.*rss, web_search, reddit"):
+        build_collectors(cfg)
+    cfg.offline = True
+    with pytest.raises(ConfigError, match="twitter"):
+        build_collectors(cfg)
+
+
+def test_unknown_collector_name_is_rejected_when_loading_config():
+    with pytest.raises(ValueError, match="twitter"):  # pydantic ValidationError
+        make_cfg(research__collectors="[twitter]")
 
 
 def test_static_search_provider_reads_fixtures_dir(tmp_path):
