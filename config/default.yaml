@@ -29,7 +29,7 @@ captions:
 tts:
   voice: Ana Florence
   language: en
-  device: auto         # auto | cpu | cuda | mps (auto/mps handling: Task 08)
+  device: auto         # auto | cpu | cuda | mps (auto = cuda > mps > cpu; mps runs XTTS on cpu)
   speaker_wav: null    # optional reference clip for voice cloning
 
 llm:                 # any OpenAI-compatible chat-completions endpoint

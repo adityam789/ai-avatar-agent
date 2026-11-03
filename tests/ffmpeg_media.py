@@ -20,7 +20,8 @@ def make_video(path: Path, seconds: float = 1.0, size: str = "160x160", fps: int
     args = ["-f", "lavfi", "-i", f"testsrc=size={size}:rate={fps}:duration={seconds}"]
     if audio:
         args += ["-f", "lavfi", "-i", f"sine=frequency=440:sample_rate=16000:duration={seconds}"]
-    _ffmpeg(*args, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", *(["-c:a", "aac"] if audio else []), path)
+    audio_args = ["-c:a", "aac"] if audio else []
+    _ffmpeg(*args, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", *audio_args, path)
     return path
 
 

@@ -57,8 +57,8 @@ Make the three heavy stages lazy, configurable, and robust.
 
 **Could NOT verify** (no torch, no weights, no network here)
 - A real XTTS or SadTalker run. `TTS(MODEL_NAME).to(device)`, `tts_to_file(speaker_wav=...)`, and the licence prompt behaviour
-  (`COQUI_TOS_AGREED=1` for non-interactive first download) follow the coqui-tts docs but are unexercised. The wav check assumes XTTS
-  writes PCM wav; a float-wav writer would be rejected with a clear `TTSError`.
+  (`COQUI_TOS_AGREED=1` for non-interactive first download) follow the coqui-tts docs but are unexercised. The wav check reads PCM with `wave` and
+  falls back to ffprobe for float / extensible wavs (see review round 1).
 - SadTalker quirks found by reading `inference.py`: `run()` returns `None` and writes `<result_dir>/<YYYY_mm_dd_HH.MM.SS>.mp4`
   (second resolution, hence the per-run dir); it silently returns without a file when no face is found; it picks only cuda or cpu (no MPS
   support, so on Apple silicon the avatar renders on cpu); the model config dir is derived from `sys.argv[0]` as
@@ -76,3 +76,24 @@ Make the three heavy stages lazy, configurable, and robust.
 - Should the submodule fork get a small patch (`run()` returns the output path; config dir not derived from `sys.argv[0]`; weights paths
   absolute)? The wrapper works around all three, so it is optional.
 - Add captions later by passing the script to `compose()` from the pipeline adapter?
+
+### Review round 1 fixes
+- `tts.generate_audio` deletes `output_path` before synthesis and again before every verification error, so a stale file can no longer
+  pass the "was written" check and a rejected (empty / garbage) wav is not left behind.
+- `tts.wav_duration` falls back to `compose.probe_duration` (ffprobe) when stdlib `wave` rejects float32 / WAVE_FORMAT_EXTENSIBLE wavs; a
+  truly unreadable file (or no ffprobe) is still a `TTSError`. NaN / inf / non-positive durations are rejected.
+- `get_tts` error mentions the licence (CPML, non-commercial) and `COQUI_TOS_AGREED=1` / running once interactively.
+- `cli._dry_run`: SadTalker checkpoints are required only when the avatar stage is planned; the avatar image only for avatar; the background
+  loop only for compose (offline still needs those files). Tests in `tests/test_cli.py`.
+- `compose`: ffmpeg and ffprobe stderr tails go through `redact.scrub`; a failing ffprobe reports its stderr; NaN / inf / <= 0 durations are
+  errors before ffmpeg runs.
+- Stale comments in `config.py` / `config/default.yaml` (device handling) updated; ruff (E,F,I,W,SIM,ISC at 120) is clean in this task's files.
+  Note: without a ruff config, `ffmpeg_media` sorts as third-party; if Task 09 declares tests as first-party, re-sort those imports.
+
+**Open items**: the default `avatar.image` lives only in the submodule, so a fresh clone without it fails the "avatar image" check (Task 11 ships a
+placeholder avatar). Pre-existing >120-char lines in `cli.py` / `tests/test_cli.py` belong to other tasks.
+
+**KNOWN_ISSUES material** (SadTalker quirks, for Task 10): no MPS support (cuda or cpu only, so Apple silicon renders on cpu); the model
+config dir is derived from `sys.argv[0]` (`<root>/models/sad_talker/src/config`); no file is written, and no error raised, when no face is
+detected; the GFPGAN enhancer reads weights from `./gfpgan/weights` relative to the CWD (and downloads silently if missing); `inference.run`
+returns `None` and writes `<result_dir>/<YYYY_mm_dd_HH.MM.SS>.mp4`. XTTS v2 is unreliable on MPS, so TTS also runs on cpu there.

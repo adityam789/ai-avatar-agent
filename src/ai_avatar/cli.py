@@ -167,11 +167,17 @@ def _dry_run(args: argparse.Namespace, cfg: Config) -> int:
         "env OPEN_ROUTER_API_KEY": {"research", "script"},
         "TTS package": {"tts"},
         "torch": {"tts", "avatar"},
+        "SadTalker checkpoints": {"avatar"},
     }
+    # Inputs that offline mode still needs (the fakes replace models and services, not files), but only
+    # for the stages that read them.
+    needs_files = {"avatar image": {"avatar"}, "background loop": {"compose"}}
     adjusted = []
     for c in checks + check_runtime():
         if c.name in needs:
             c = dataclasses.replace(c, required=bool(needs[c.name] & set(will_run)) and not cfg.offline)
+        elif c.name in needs_files:
+            c = dataclasses.replace(c, required=bool(needs_files[c.name] & set(will_run)))
         adjusted.append(c)
     notes = [f"resume: {args.resume}"] if args.resume else []
     notes += [f"{flag}: {value}" for flag, value in (("from stage", args.from_stage), ("only stage", args.only_stage)) if value]

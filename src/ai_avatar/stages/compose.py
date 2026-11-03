@@ -8,12 +8,14 @@ Burned-in captions are not implemented (``cfg.captions.enabled`` is currently ig
 from __future__ import annotations
 
 import logging
+import math
 import shutil
 import subprocess
 from pathlib import Path
 
 from ai_avatar.config import Config
 from ai_avatar.errors import ComposeError
+from ai_avatar.redact import scrub
 
 log = logging.getLogger(__name__)
 
@@ -58,14 +60,24 @@ def build_ffmpeg_cmd(
     ]  # fmt: skip
 
 
+def _tail(stderr: str) -> str:
+    """The last few lines of a tool's stderr, scrubbed of secrets."""
+    return scrub("\n".join(stderr.strip().splitlines()[-STDERR_TAIL_LINES:]))
+
+
 def probe_duration(media: Path) -> float:
-    """Container duration of ``media`` in seconds, via ffprobe."""
+    """Container duration of ``media`` in seconds, via ffprobe (callers must check it is finite and positive)."""
     cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(media)]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        if result.returncode != 0:
+            raise ValueError(f"ffprobe exited with status {result.returncode}")
         return float(result.stdout.strip())
-    except (subprocess.CalledProcessError, ValueError) as exc:
-        raise ComposeError(f"Could not read the duration of {media} with ffprobe; is it a valid video?") from exc
+    except ValueError as exc:
+        raise ComposeError(
+            f"Could not read the duration of {media} with ffprobe ({exc}); is it a valid media file?\n"
+            f"{_tail(result.stderr)}"
+        ) from exc
 
 
 def compose(avatar_video: Path, loop_video: Path, output_path: Path, cfg: Config) -> None:
@@ -82,8 +94,8 @@ def compose(avatar_video: Path, loop_video: Path, output_path: Path, cfg: Config
     video = cfg.video
     avatar_height = int(video.height * cfg.avatar.height_ratio) // 2 * 2  # even, so yuv420p stays valid
     duration = probe_duration(avatar_video)
-    if duration <= 0:
-        raise ComposeError(f"The avatar video has no duration: {avatar_video}")
+    if not (math.isfinite(duration) and duration > 0):
+        raise ComposeError(f"The avatar video has no duration ({duration}): {avatar_video}")
     cmd = build_ffmpeg_cmd(
         avatar_video, loop_video, output_path,
         duration=duration, width=video.width, height=video.height, avatar_height=avatar_height,
@@ -93,5 +105,4 @@ def compose(avatar_video: Path, loop_video: Path, output_path: Path, cfg: Config
     log.info("Composing %.1fs video -> %s", duration, output_path)
     result = subprocess.run(cmd, check=False, capture_output=True, text=True)
     if result.returncode != 0:
-        tail = "\n".join(result.stderr.strip().splitlines()[-STDERR_TAIL_LINES:])
-        raise ComposeError(f"ffmpeg exited with status {result.returncode}:\n{tail}")
+        raise ComposeError(f"ffmpeg exited with status {result.returncode}:\n{_tail(result.stderr)}")

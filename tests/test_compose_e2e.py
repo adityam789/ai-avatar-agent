@@ -2,12 +2,13 @@
 
 import time
 
+from ffmpeg_media import make_image, make_video, probe, requires_ffmpeg
+
 from ai_avatar import pipeline
 from ai_avatar.config import load_config
 from ai_avatar.stages.avatar import generate_avatar
 from ai_avatar.stages.compose import compose
 from ai_avatar.stages.tts import generate_audio, wav_duration
-from ffmpeg_media import make_image, make_video, probe, requires_ffmpeg
 
 pytestmark = requires_ffmpeg
 

@@ -4,8 +4,10 @@ import subprocess
 import sys
 import types
 import wave
+from pathlib import Path
 
 import pytest
+from ffmpeg_media import requires_ffmpeg
 
 from ai_avatar.config import load_config
 from ai_avatar.errors import TTSError
@@ -91,6 +93,12 @@ def test_model_load_failures_are_scrubbed(monkeypatch, fake_coqui):
     with pytest.raises(TTSError) as exc:
         tts.get_tts("cpu")
     assert "AIzaSyFAKEKEY123456" not in str(exc.value) and "Could not load XTTS v2" in str(exc.value)
+
+
+def test_model_load_failure_hints_at_the_licence_prompt(fake_coqui):
+    sys.modules["TTS.api"].TTS = lambda name: (_ for _ in ()).throw(EOFError("EOF when reading a line"))
+    with pytest.raises(TTSError, match=r"COQUI_TOS_AGREED=1.*non-commercial|non-commercial.*COQUI_TOS_AGREED=1"):
+        tts.get_tts("cpu")
 
 
 # --- generate_audio ---
@@ -180,9 +188,90 @@ def test_output_is_verified(backend, cfg, tmp_path):
     backend.backend.behaviour = lambda kw: write_wav(kw["file_path"], seconds=0)
     with pytest.raises(TTSError, match="empty audio"):
         tts.generate_audio("hello", out, cfg)
-    backend.backend.behaviour = lambda kw: open(kw["file_path"], "wb").write(b"not a wav file at all")
+    backend.backend.behaviour = lambda kw: write_bytes(kw["file_path"], b"not a wav file at all")
     with pytest.raises(TTSError, match="not a readable PCM wav"):
         tts.generate_audio("hello", out, cfg)
+
+
+def write_bytes(path, data):
+    Path(path).write_bytes(data)
+
+
+def test_a_stale_output_file_does_not_pass_the_written_check(backend, cfg, tmp_path):
+    out = tmp_path / "a.wav"
+    write_wav(out, seconds=3)  # left over from an earlier run
+    backend.backend.behaviour = lambda kw: None  # synthesis "succeeds" but writes nothing
+    with pytest.raises(TTSError, match="was not written"):
+        tts.generate_audio("hello", out, cfg)
+    assert not out.exists()
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [(None, "empty audio"), (b"not a wav file at all", "not a readable PCM wav")],
+)
+def test_rejected_output_is_not_left_on_disk(backend, cfg, tmp_path, content, message):
+    out = tmp_path / "a.wav"
+    if content is None:
+        backend.backend.behaviour = lambda kw: write_wav(kw["file_path"], seconds=0)
+    else:
+        backend.backend.behaviour = lambda kw: write_bytes(kw["file_path"], content)
+    with pytest.raises(TTSError, match=message):
+        tts.generate_audio("hello", out, cfg)
+    assert not out.exists()
+
+
+# --- wav formats the stdlib cannot read ---
+
+
+def _ffmpeg_wav(path, codec, *extra):
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=duration=1.5:sample_rate=16000",
+         "-c:a", codec, *extra, str(path)],
+        check=True,
+    )  # fmt: skip
+
+
+@requires_ffmpeg
+@pytest.mark.parametrize("codec", ["pcm_f32le", "pcm_s24le"])  # IEEE float / WAVE_FORMAT_EXTENSIBLE
+def test_wav_duration_reads_wavs_the_stdlib_rejects_via_ffprobe(tmp_path, codec):
+    path = tmp_path / "x.wav"
+    _ffmpeg_wav(path, codec)
+    with pytest.raises(wave.Error), wave.open(str(path), "rb"):
+        pass
+    assert wav_duration(path) == pytest.approx(1.5, abs=0.05)
+
+
+@requires_ffmpeg
+def test_float_wav_from_the_backend_is_accepted(backend, cfg, tmp_path):
+    backend.backend.behaviour = lambda kw: _ffmpeg_wav(kw["file_path"], "pcm_f32le")
+    out = tts.generate_audio("hello", tmp_path / "a.wav", cfg)
+    assert out.is_file()
+
+
+@requires_ffmpeg
+def test_corrupt_wav_is_still_a_tts_error(tmp_path):
+    path = tmp_path / "bad.wav"
+    path.write_bytes(b"RIFF....WAVEgarbage")
+    with pytest.raises(TTSError, match="not a readable PCM wav"):
+        wav_duration(path)
+
+
+def test_unreadable_wav_without_ffprobe_is_a_tts_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(tts.shutil, "which", lambda name: None)
+    path = tmp_path / "bad.wav"
+    path.write_bytes(b"nope")
+    with pytest.raises(TTSError, match="ffprobe is not installed"):
+        wav_duration(path)
+
+
+def test_nan_duration_from_ffprobe_fallback_is_rejected(backend, cfg, tmp_path, monkeypatch):
+    backend.backend.behaviour = lambda kw: write_bytes(kw["file_path"], b"float wav the stdlib rejects")
+    monkeypatch.setattr(tts.shutil, "which", lambda name: "/usr/bin/ffprobe")
+    monkeypatch.setattr(tts, "probe_duration", lambda path: float("nan"))
+    with pytest.raises(TTSError, match="empty audio"):
+        tts.generate_audio("hello", tmp_path / "a.wav", cfg)
+    assert not (tmp_path / "a.wav").exists()
 
 
 # --- offline fake ---

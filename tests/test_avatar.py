@@ -5,13 +5,12 @@ import sys
 import textwrap
 
 import pytest
+from ffmpeg_media import make_image, requires_ffmpeg
 
 from ai_avatar.config import load_config
 from ai_avatar.errors import AvatarError
 from ai_avatar.stages import avatar as avatar_mod
 from ai_avatar.stages.avatar import generate_avatar, missing_sadtalker_files
-from ffmpeg_media import make_image, requires_ffmpeg
-
 
 MAPPING_NETS = ("mapping_00109-model.pth.tar", "mapping_00229-model.pth.tar")
 
@@ -192,8 +191,9 @@ def test_missing_python_dependency_gives_install_hint(env, clean_modules):
 
 @requires_ffmpeg
 def test_fake_avatar_renders_still_image_and_audio_into_an_mp4(tmp_path):
-    from ai_avatar.stages.tts import generate_audio
     from ffmpeg_media import probe
+
+    from ai_avatar.stages.tts import generate_audio
 
     cfg = load_config(environ={})
     cfg.offline = True  # no checkpoints or submodule needed

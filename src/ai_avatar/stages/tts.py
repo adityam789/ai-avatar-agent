@@ -12,13 +12,16 @@ the prompt in non-interactive runs).
 from __future__ import annotations
 
 import logging
+import math
+import shutil
 import wave
 from functools import lru_cache
 from pathlib import Path
 
 from ai_avatar.config import Config
-from ai_avatar.errors import TTSError
+from ai_avatar.errors import ComposeError, TTSError
 from ai_avatar.redact import scrub
+from ai_avatar.stages.compose import probe_duration
 
 log = logging.getLogger(__name__)
 
@@ -70,13 +73,29 @@ def get_tts(device: str):
     try:
         return TTS(MODEL_NAME).to(device)
     except Exception as exc:  # download failure, licence prompt without a TTY, corrupt cache, ...
-        raise TTSError(f"Could not load XTTS v2 on {device}: {scrub(exc)}") from exc
+        raise TTSError(
+            f"Could not load XTTS v2 on {device}: {scrub(exc)}\n"
+            "If this was the first download or a licence prompt in a non-interactive run: read the licence "
+            "(Coqui Public Model License, non-commercial), then set COQUI_TOS_AGREED=1 or run once interactively."
+        ) from exc
 
 
 def wav_duration(path: Path) -> float:
-    """Length of a PCM wav file in seconds."""
-    with wave.open(str(path), "rb") as f:
-        return f.getnframes() / f.getframerate()
+    """Length of a wav file in seconds.
+
+    The stdlib ``wave`` module only reads integer PCM, so float32 / WAVE_FORMAT_EXTENSIBLE files (which
+    XTTS may write) fall back to ffprobe when it is installed. Raises :class:`TTSError` if neither can read it.
+    """
+    try:
+        with wave.open(str(path), "rb") as f:
+            return f.getnframes() / f.getframerate()
+    except (wave.Error, EOFError, ZeroDivisionError) as exc:
+        if shutil.which("ffprobe") is None:
+            raise TTSError(f"{path} is not a readable PCM wav file ({exc}) and ffprobe is not installed.") from exc
+        try:
+            return probe_duration(path)
+        except ComposeError as probe_exc:
+            raise TTSError(f"{path} is not a readable PCM wav file ({exc}).") from probe_exc
 
 
 def generate_audio(script: str, output_path: Path, cfg: Config) -> Path:
@@ -88,6 +107,7 @@ def generate_audio(script: str, output_path: Path, cfg: Config) -> Path:
     if not script.strip():
         raise TTSError("The script is empty; nothing to synthesize.")
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.unlink(missing_ok=True)  # a stale file must not pass the checks below
     voice: dict[str, str] = {"speaker": cfg.tts.voice}
     if cfg.tts.speaker_wav is not None:
         reference = cfg.resolve(cfg.tts.speaker_wav)
@@ -113,9 +133,11 @@ def generate_audio(script: str, output_path: Path, cfg: Config) -> Path:
         raise TTSError(f"Speech synthesis finished but {output_path} was not written.")
     try:
         seconds = wav_duration(output_path)
-    except (wave.Error, EOFError, ZeroDivisionError) as exc:
-        raise TTSError(f"{output_path} is not a readable PCM wav file ({exc}).") from exc
-    if seconds <= 0:
+    except TTSError:
+        output_path.unlink(missing_ok=True)
+        raise
+    if not (math.isfinite(seconds) and seconds > 0):
+        output_path.unlink(missing_ok=True)
         raise TTSError(f"Speech synthesis produced an empty audio file: {output_path}")
     log.info("Synthesized %.1fs of audio -> %s", seconds, output_path)
     return output_path

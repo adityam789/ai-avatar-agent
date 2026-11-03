@@ -22,9 +22,11 @@ def test_build_ffmpeg_cmd_snapshot():
         "-i", "avatar.mp4",
         "-stream_loop", "-1", "-i", "loop.mp4",
         "-filter_complex",
-        "[0:v]fps=25,scale=1080:1056:force_original_aspect_ratio=increase,crop=1080:1056[top];"
-        "[1:v]fps=25,scale=1080:864:force_original_aspect_ratio=increase,crop=1080:864[bottom];"
-        "[top][bottom]vstack=inputs=2[v]",
+        (
+            "[0:v]fps=25,scale=1080:1056:force_original_aspect_ratio=increase,crop=1080:1056[top];"
+            "[1:v]fps=25,scale=1080:864:force_original_aspect_ratio=increase,crop=1080:864[bottom];"
+            "[top][bottom]vstack=inputs=2[v]"
+        ),
         "-map", "[v]", "-map", "0:a?",
         "-t", "12.346",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
@@ -101,3 +103,29 @@ def test_missing_input_files_and_bad_duration_are_reported(stubbed):
     stubbed.duration = "0.0"
     with pytest.raises(ComposeError, match="no duration"):
         compose_mod.compose(avatar, loop, out, cfg)
+
+
+def test_ffmpeg_stderr_tail_is_scrubbed(stubbed, monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "AIzaSyFAKEKEY123456")
+    stubbed.returncode = 1
+    stubbed.stderr = "Error opening https://x.test/v.mp4?key=AIzaSyFAKEKEY123456"
+    with pytest.raises(ComposeError) as exc:
+        compose_mod.compose(*stubbed.args)
+    assert "AIzaSyFAKEKEY123456" not in str(exc.value) and "Error opening" in str(exc.value)
+
+
+def test_ffprobe_failure_includes_its_stderr_tail(tmp_path, monkeypatch):
+    def failing_probe(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="a.mp4: Invalid data found when processing input")
+
+    monkeypatch.setattr(compose_mod.subprocess, "run", failing_probe)
+    with pytest.raises(ComposeError, match="ffprobe.*\n.*Invalid data found when processing input"):
+        compose_mod.probe_duration(tmp_path / "a.mp4")
+
+
+@pytest.mark.parametrize("bad", ["nan", "inf", "-inf", "-2.0", "0"])
+def test_non_finite_or_non_positive_durations_are_errors(stubbed, bad):
+    stubbed.duration = bad
+    with pytest.raises(ComposeError, match="no duration"):
+        compose_mod.compose(*stubbed.args)
+    assert all(call[0] == "ffprobe" for call in stubbed.calls)  # ffmpeg never ran

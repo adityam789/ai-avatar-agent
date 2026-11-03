@@ -65,7 +65,7 @@ class CaptionsConfig(_Section):
 
 
 class TTSConfig(_Section):
-    # ``device`` auto/mps handling arrives in Task 08; today only "cuda" enables the GPU.
+    # ``device``: "auto" picks cuda > mps > cpu; XTTS v2 is unreliable on MPS, so mps runs on cpu (with a warning).
     voice: str = "Ana Florence"
     language: str = "en"
     device: Literal["auto", "cpu", "cuda", "mps"] = "auto"
