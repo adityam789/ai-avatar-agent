@@ -1,4 +1,4 @@
-"""Smoke test for ResearchAgent (moves to tests/ in Task 09).
+"""Live smoke test for ResearchAgent (Task 09 replaces it with mocked tests).
 
 Needs REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET (see .env.example) and network
 access; skipped when the credentials are unset.
@@ -9,10 +9,11 @@ import os
 
 import pytest
 
-from .research_agent import ResearchAgent
-from ..llm_client import LLMClient
+from ai_avatar.llm.client import LLMClient
+from ai_avatar.research.agent import ResearchAgent
 
 
+@pytest.mark.integration
 def test_research_agent():
     # Credentials come from the environment (see .env.example); skip when absent.
     client_id = os.getenv("REDDIT_CLIENT_ID")

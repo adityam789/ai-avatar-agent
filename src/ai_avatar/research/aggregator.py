@@ -5,7 +5,7 @@ performs minimal de-duplication by URL.
 """
 import json
 from typing import List
-from .schemas import RawSnippet
+from ai_avatar.research.schemas import RawSnippet
 
 class LLMAggregator:
 

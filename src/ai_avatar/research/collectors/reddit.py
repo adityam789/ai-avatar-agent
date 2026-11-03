@@ -4,8 +4,8 @@ This collector expects a configured praw.Reddit instance via client_id,
 client_secret and user_agent. It returns RawSnippet dataclasses.
 """
 from typing import List
-from ..schemas import RawSnippet
-from .base import SourceCollector
+from ai_avatar.research.schemas import RawSnippet
+from ai_avatar.research.collectors.base import SourceCollector
 
 
 class RedditCollector(SourceCollector):

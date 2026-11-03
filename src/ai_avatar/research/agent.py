@@ -3,12 +3,12 @@
 This module provides a minimal ResearchAgent class which coordinates collectors,
 aggregator and cache to fetch and aggregate external data.
 """
-from .schemas import ResearchBundle
-from .collectors.reddit import RedditCollector
-from .collectors.google_cse import GoogleCSECollector
-from .collectors.rss import RSSCollector
-from .aggregator import LLMAggregator
-from .cache import ResearchCache
+from ai_avatar.research.schemas import ResearchBundle
+from ai_avatar.research.collectors.reddit import RedditCollector
+from ai_avatar.research.collectors.google_cse import GoogleCSECollector
+from ai_avatar.research.collectors.rss import RSSCollector
+from ai_avatar.research.aggregator import LLMAggregator
+from ai_avatar.research.cache import ResearchCache
 
 class ResearchAgent:
 

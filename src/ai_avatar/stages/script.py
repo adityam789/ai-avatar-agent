@@ -1,8 +1,9 @@
-from typing import Optional
+"""Script stage: research the topic, then ask the LLM for a short narration."""
+
 import os
 
-from .research import run_research
-from .llm_client import LLMClient
+from ai_avatar.research import run_research
+from ai_avatar.llm.client import LLMClient
 
 try:
     from dotenv import load_dotenv
@@ -10,7 +11,7 @@ try:
 except Exception:
     pass
 
-def generate_script(topic: str, llm_client: Optional[object] = None) -> str:
+def generate_script(topic: str, llm_client: object | None = None) -> str:
     """Generate a short narration script for `topic` by running the research
     pipeline and asking an LLM to synthesize a 12–15s narration from the facts.
 

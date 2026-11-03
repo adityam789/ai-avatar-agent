@@ -1,15 +1,5 @@
-"""Repository-level launcher.
-
-Run this from the repo root with:
-
-    python run.py
-
-This avoids modifying package import paths inside library code and keeps
-`app/` as a regular package.
-"""
-from app.orchestrator import run
-
+"""Back-compat shim: ``python run.py`` == ``python -m ai_avatar``."""
+from ai_avatar.__main__ import main
 
 if __name__ == "__main__":
-    out = run("OpenAI")
-    print("Generated:", out)
+    main()

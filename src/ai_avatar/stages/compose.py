@@ -1,3 +1,5 @@
+"""Compositing stage: stack the avatar video over a looping background clip with ffmpeg."""
+
 import subprocess
 from pathlib import Path
 
@@ -9,6 +11,7 @@ def compose(
     width=1080,
     height=1920
 ):
+    """Write a ``width`` x ``height`` video: avatar on top, looping ``loop_video`` below."""
     avatar_h = int(height * avatar_ratio)
     loop_h = height - avatar_h
 

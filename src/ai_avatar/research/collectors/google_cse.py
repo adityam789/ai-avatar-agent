@@ -3,8 +3,8 @@
 import os
 import requests
 from typing import List
-from ..schemas import RawSnippet
-from .base import SourceCollector
+from ai_avatar.research.schemas import RawSnippet
+from ai_avatar.research.collectors.base import SourceCollector
 
 class GoogleCSECollector(SourceCollector):
 

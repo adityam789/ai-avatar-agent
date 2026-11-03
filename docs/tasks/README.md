@@ -4,7 +4,7 @@ Work in order. Each file has: Goal, Context, Steps, Acceptance criteria, Open qu
 Mark a task done by checking its box here and committing.
 
 - [x] 01 — Security & secrets hygiene (`01-security-hygiene.md`)
-- [ ] 02 — Packaging, dependencies, Python version (`02-packaging-deps.md`)
+- [x] 02 — Packaging, dependencies, Python version (`02-packaging-deps.md`)
 - [ ] 03 — Restructure into a proper package + config (`03-package-and-config.md`)
 - [ ] 04 — Orchestrator: real pipeline, run dirs, resumability (`04-orchestrator.md`)
 - [ ] 05 — CLI and `__main__` (`05-cli.md`)

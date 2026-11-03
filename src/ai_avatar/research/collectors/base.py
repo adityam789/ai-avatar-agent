@@ -1,7 +1,7 @@
 """Base collector interface."""
 from abc import ABC, abstractmethod
 from typing import List
-from ..schemas import RawSnippet
+from ai_avatar.research.schemas import RawSnippet
 
 
 class SourceCollector(ABC):

@@ -1,8 +1,8 @@
 """RSS collector stub."""
 import feedparser
 from typing import List
-from ..schemas import RawSnippet
-from .base import SourceCollector
+from ai_avatar.research.schemas import RawSnippet
+from ai_avatar.research.collectors.base import SourceCollector
 
 RSS_FEEDS = [
     "https://feeds.arstechnica.com/arstechnica/index",
