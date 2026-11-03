@@ -8,7 +8,7 @@ Point ``llm.base_url`` at the endpoint's ``/chat/completions`` URL and list mode
   the client tries the models one after another when a model keeps failing or is not found;
 * retries: HTTP 408, 425, 429 and 5xx, network errors and timeouts, and HTTP 200 responses whose body is an
   error with such a code (OpenRouter reports upstream failures this way), with exponential backoff or the
-  server's ``Retry-After`` (capped).
+  server's ``Retry-After`` (both capped at 30 s).
 
 Anything that is not a well-formed completion raises :class:`~ai_avatar.errors.LLMError`; raw HTTP bodies are
 never returned to callers, and the API key is masked in every message the client builds.
@@ -30,7 +30,7 @@ API_KEY_ENV = "OPEN_ROUTER_API_KEY"
 _RETRY_STATUSES = frozenset({408, 425, 429})  # plus every 5xx, see _is_retryable
 _MODEL_MISSING_STATUS = 404
 _BACKOFF_BASE_SECONDS = 1.0
-_MAX_RETRY_AFTER_SECONDS = 30.0
+_MAX_RETRY_AFTER_SECONDS = 30.0  # also caps the exponential backoff
 _MAX_DETAIL_CHARS = 200
 _MIN_KEY_LEN = 6  # same rule as ai_avatar.redact
 
@@ -111,7 +111,9 @@ class LLMClient:
             attempt += 1
             retry_after = None
             try:
-                response = requests.post(self.base_url, headers=self._headers, json=payload, timeout=self.timeout_seconds)
+                response = requests.post(
+                    self.base_url, headers=self._headers, json=payload, timeout=self.timeout_seconds
+                )
             except (requests.Timeout, requests.ConnectionError) as exc:
                 problem = self._scrub(f"network error: {exc}")
             except requests.RequestException as exc:
@@ -121,8 +123,10 @@ class LLMClient:
                 status = _failure_status(response)
                 if status is None:
                     return response
-                label = f"HTTP {status}" if status == response.status_code else f"HTTP {response.status_code} with error code {status}"
-                problem = self._scrub(f"{label}{_error_detail(response)}")
+                label = f"HTTP {status}"
+                if status != response.status_code:
+                    label = f"HTTP {response.status_code} with error code {status}"
+                problem = self._scrub(f"{label}{_error_detail(response, self._scrub)}")
                 if status == _MODEL_MISSING_STATUS:
                     raise _ModelFailed(f"LLM request failed ({problem}). Check llm.models.")
                 if not _is_retryable(status):
@@ -130,7 +134,9 @@ class LLMClient:
                 retry_after = _retry_after_seconds(response)
             if attempt == attempts:
                 raise _ModelFailed(f"LLM request failed after {attempts} attempts (last: {problem}).")
-            delay = _BACKOFF_BASE_SECONDS * 2 ** (attempt - 1) if retry_after is None else retry_after
+            delay = min(_BACKOFF_BASE_SECONDS * 2 ** (attempt - 1), _MAX_RETRY_AFTER_SECONDS)
+            if retry_after is not None:
+                delay = retry_after
             log.warning("LLM attempt %d/%d failed (%s); retrying in %.1fs", attempt, attempts, problem, delay)
             self._sleep(delay)
 
@@ -168,15 +174,16 @@ def _retry_after_seconds(response: requests.Response) -> float | None:
     return min(seconds, _MAX_RETRY_AFTER_SECONDS) if seconds >= 0 else None  # also rejects NaN
 
 
-def _error_detail(response: requests.Response) -> str:
-    """Short, scrubbed ``error.message`` from a JSON error body, or '' (the body is never echoed verbatim)."""
+def _error_detail(response: requests.Response, mask: Callable[[object], str]) -> str:
+    """Short ``error.message`` from a JSON error body, or ''. It is masked first, then truncated, so a secret
+    straddling the cut cannot survive in part (the body is never echoed verbatim)."""
     try:
         message = response.json()["error"]["message"]
     except (ValueError, KeyError, TypeError):
         return ""
     if not isinstance(message, str):
         return ""
-    return f": {scrub(message)[:_MAX_DETAIL_CHARS]}"
+    return f": {mask(message)[:_MAX_DETAIL_CHARS]}"
 
 
 def _auth_hint(status: int) -> str:

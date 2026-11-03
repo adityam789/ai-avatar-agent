@@ -69,3 +69,16 @@ A small, reliable, provider-agnostic LLM layer and a script generator with bette
   Constructor key is masked in every message and log line, request errors are raised `from None`, blank keys count as missing, no
   `AssertionError` path. `llm.max_retries >= 0` and `llm.timeout_seconds > 0` are validated in `LLMConfig` (and in the client).
 - `FakeLLM` uses the first whole-line `TASK: <name>` marker; the script prompt no longer says "(none provided)" and collapses topic whitespace.
+
+**Review round 2 fixes**
+- Client: the server's `error.message` is masked (environment key and constructor key) before it is truncated to 200 chars, so a key
+  straddling the cut can no longer survive in part. Exponential backoff is capped at 30 s like `Retry-After`. Long lines wrapped.
+- Script stage: if the first draft is out of budget but non-empty and the corrective retry raises `LLMError`, the first draft is kept
+  (trimmed if too long) and a scrubbed warning is logged; an empty first draft with a failing retry still raises.
+- Draft selection compares each draft's word count after `trim_to_words` against the target (a 5-word draft no longer beats a
+  100-word retry that trims to the budget).
+- Sanitizer: `2*3*4` becomes "2 times 3 times 4" and `5 * 3` "5 times 3"; `*`/`**` is stripped as emphasis only when paired around
+  non-space text and not inside a word; `~$5` / `~-3` read "about $5" / "about -3".
+- Tests: key at the truncation point (constructor and environment key), parametrized host spoofing for the `models` array, capped
+  backoff, hard-cut punctuation, failed retry (both cases), trimmed-length draft selection, new sanitizer rows. Each fix was
+  mutation-checked (reverted, tests failed). Suite: 213 passed.

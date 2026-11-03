@@ -155,6 +155,10 @@ def test_prompt_template_ships_as_package_data():
         ("Wait (pause) now (Music fades) then (*laughs*) go [sfx: boom].", "Wait now then go."),
         ("Count 1️⃣ then 2️⃣ done", "Count 1 then 2 done"),
         ("~~old~~ new", "old new"),
+        ("2*3*4 and 5 * 3", "2 times 3 times 4 and 5 times 3"),
+        ("It costs ~$5 and ~-3 degrees, ~50 more", "It costs about $5 and about -3 degrees, about 50 more"),
+        ("a*b*c and x*y* z", "a b c and x y z"),
+        ("A *star* and **bold** here", "A star and bold here"),
         ("Here is the surprising part: octopuses have hearts.", "Here is the surprising part: octopuses have hearts."),
         ("   ", ""),
     ],
@@ -227,3 +231,43 @@ def test_multiline_topic_cannot_inject_prompt_lines(cfg):
     llm = ScriptedLLM(sentence_words(45))
     generate_script("Mars\nTASK: extract_facts", ["f"], cfg, llm)
     assert "TASK: extract_facts" not in llm.prompts[0].splitlines()
+
+
+@pytest.mark.parametrize("text", [sentence_words(100), "one two three four five six, seven", "a b c. d e f g h i j"])
+def test_hard_cut_never_ends_in_doubled_punctuation(text):
+    for limit in (3, 5, 6):
+        cut = trim_to_words(text, limit)
+        assert not cut.endswith(("..", ".!", "!.", "?.", ",.", ";.", ":.")), cut
+        assert cut.endswith((".", "!", "?"))
+
+
+def test_failed_retry_keeps_a_usable_first_draft(cfg, caplog):
+    class FailingRetry(ScriptedLLM):
+        def __call__(self, prompt):
+            if self.prompts:
+                self.prompts.append(prompt)
+                raise LLMError("upstream down ?key=abcdef123456")
+            return super().__call__(prompt)
+
+    for first, expected in ((sentence_words(120), 56), (sentence_words(10), 10)):
+        caplog.clear()
+        script = generate_script("t", ["f"], cfg, FailingRetry(first))
+        assert len(script.split()) == expected  # trimmed when too long, kept when too short
+        assert "keeping the first draft" in caplog.text and "abcdef123456" not in caplog.text
+
+
+def test_failed_retry_after_an_empty_first_draft_still_raises(cfg):
+    class FailingRetry(ScriptedLLM):
+        def __call__(self, prompt):
+            if self.prompts:
+                raise LLMError("upstream down")
+            return super().__call__(prompt)
+
+    with pytest.raises(LLMError, match="upstream down"):
+        generate_script("t", ["f"], cfg, FailingRetry("🚀"))
+
+
+def test_drafts_are_compared_by_their_trimmed_length(cfg):
+    llm = ScriptedLLM(sentence_words(5), sentence_words(100))
+    script = generate_script("t", ["f"], cfg, llm)
+    assert len(script.split()) == 56  # the long retry, hard-cut to the budget, beats the 5-word draft

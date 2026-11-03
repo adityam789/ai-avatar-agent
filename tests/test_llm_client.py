@@ -118,7 +118,12 @@ def test_openrouter_gets_the_models_array(post):
 
 
 def test_other_hosts_never_get_the_models_field_and_fall_back_client_side(post):
-    post.queue = [FakeResponse(503), FakeResponse(503), FakeResponse(404, {"error": {"message": "no such model"}}), ok("third")]
+    post.queue = [
+        FakeResponse(503),
+        FakeResponse(503),
+        FakeResponse(404, {"error": {"message": "no such model"}}),
+        ok("third"),
+    ]
     client = make_client(models=("m1", "m2", "m3"), max_retries=1)
     assert client("x") == "third"
     assert [call[1]["json"]["model"] for call in post.calls] == ["m1", "m1", "m2", "m3"]
@@ -338,3 +343,43 @@ def test_request_exception_cause_is_not_chained(post, no_env_key, caplog):
         make_client(key=KEY)("x")
     assert excinfo.value.__cause__ is None and excinfo.value.__suppress_context__
     assert_key_free(excinfo, caplog)
+
+
+def test_key_straddling_the_truncation_point_is_fully_masked(post, no_env_key):
+    post.queue = [FakeResponse(400, {"error": {"message": "x" * 190 + KEY + " tail"}})]
+    with pytest.raises(LLMError) as excinfo:
+        make_client(key=KEY)("x")
+    assert KEY[:6] not in str(excinfo.value)  # not even the part before the cut
+    assert "***" in str(excinfo.value)
+
+
+def test_environment_key_straddling_the_truncation_point_is_masked(post, monkeypatch):
+    monkeypatch.setenv("OPEN_ROUTER_API_KEY", "sk-env-straddler-555")
+    post.queue = [FakeResponse(400, {"error": {"message": "y" * 195 + "sk-env-straddler-555"}})]
+    with pytest.raises(LLMError) as excinfo:
+        make_client(key="unrelated-key-1")("x")
+    assert "sk-env" not in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("url", "sends_models"),
+    [
+        (OPENROUTER_URL, True),
+        ("https://eu.openrouter.ai/api/v1/chat/completions", True),
+        ("https://openrouter.ai.evil.com/api/v1/chat/completions", False),
+        ("https://evil.com/openrouter.ai/api/v1/chat/completions", False),
+        ("https://openrouter.ai@evil.com/api/v1/chat/completions", False),
+        ("https://notopenrouter.ai/api/v1/chat/completions", False),
+    ],
+)
+def test_models_array_is_only_sent_to_openrouter_hosts(post, url, sends_models):
+    post.queue = [ok()]
+    make_client(models=("a", "b"), url=url)("x")
+    assert ("models" in post.calls[0][1]["json"]) is sends_models
+
+
+def test_exponential_backoff_is_capped(post):
+    post.queue = [FakeResponse(503)] * 8 + [ok()]
+    sleeps = []
+    make_client(sleeps, max_retries=8)("x")
+    assert sleeps == [1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0, 30.0]
