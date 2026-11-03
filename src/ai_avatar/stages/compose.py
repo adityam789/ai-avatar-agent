@@ -38,12 +38,14 @@ def build_ffmpeg_cmd(
     """The ffmpeg argv that stacks ``avatar_video`` (``avatar_height`` px tall) over ``loop_video``.
 
     Pure: no I/O, so the exact command can be unit tested. ``duration`` (seconds) caps the output.
+    ``out_range=tv`` converts full-range inputs (SadTalker writes ``yuvj420p``), so the result is
+    plain limited-range ``yuv420p``.
     """
     loop_height = height - avatar_height
     filter_complex = (
-        f"[0:v]fps={OUTPUT_FPS},scale={width}:{avatar_height}:force_original_aspect_ratio=increase,"
+        f"[0:v]fps={OUTPUT_FPS},scale={width}:{avatar_height}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={width}:{avatar_height}[top];"
-        f"[1:v]fps={OUTPUT_FPS},scale={width}:{loop_height}:force_original_aspect_ratio=increase,"
+        f"[1:v]fps={OUTPUT_FPS},scale={width}:{loop_height}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={width}:{loop_height}[bottom];"
         "[top][bottom]vstack=inputs=2[v]"
     )

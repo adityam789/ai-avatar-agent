@@ -64,3 +64,18 @@ def test_offline_pipeline_from_the_tts_stage_produces_final_mp4(tmp_path, monkey
     assert final.name == "final.mp4"
     _assert_final_video(final, expected_seconds=wav_duration(final.parent / "audio.wav"))
     assert (final.parent / "avatar.mp4").is_file()
+
+
+def test_full_range_avatar_input_still_yields_plain_yuv420p(tmp_path):
+    """SadTalker/FakeAvatar write full-range yuvj420p; the output must be limited-range yuv420p."""
+    from ffmpeg_media import _ffmpeg
+
+    cfg = load_config(environ={})
+    avatar = tmp_path / "avatar.mp4"
+    _ffmpeg("-f", "lavfi", "-i", "testsrc=size=160x160:rate=10:duration=1", "-f", "lavfi", "-i",
+            "sine=frequency=440:sample_rate=16000:duration=1", "-c:v", "libx264", "-pix_fmt", "yuvj420p",
+            "-c:a", "aac", avatar)  # fmt: skip
+    assert probe(avatar)["video"]["pix_fmt"] == "yuvj420p"
+    loop = make_video(tmp_path / "loop.mp4", seconds=1, size="320x180")
+    compose(avatar, loop, tmp_path / "final.mp4", cfg)
+    assert probe(tmp_path / "final.mp4")["video"]["pix_fmt"] == "yuv420p"

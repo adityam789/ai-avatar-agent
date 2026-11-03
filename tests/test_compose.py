@@ -23,8 +23,8 @@ def test_build_ffmpeg_cmd_snapshot():
         "-stream_loop", "-1", "-i", "loop.mp4",
         "-filter_complex",
         (
-            "[0:v]fps=25,scale=1080:1056:force_original_aspect_ratio=increase,crop=1080:1056[top];"
-            "[1:v]fps=25,scale=1080:864:force_original_aspect_ratio=increase,crop=1080:864[bottom];"
+            "[0:v]fps=25,scale=1080:1056:force_original_aspect_ratio=increase:out_range=tv,crop=1080:1056[top];"
+            "[1:v]fps=25,scale=1080:864:force_original_aspect_ratio=increase:out_range=tv,crop=1080:864[bottom];"
             "[top][bottom]vstack=inputs=2[v]"
         ),
         "-map", "[v]", "-map", "0:a?",
