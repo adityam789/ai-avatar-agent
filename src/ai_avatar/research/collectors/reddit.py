@@ -1,51 +1,56 @@
-"""Reddit collector using praw.
+"""Reddit collector using praw (optional ``reddit`` extra; the API now requires approval)."""
 
-This collector expects a configured praw.Reddit instance via client_id,
-client_secret and user_agent. It returns RawSnippet dataclasses.
-"""
-from typing import List
-from ai_avatar.research.schemas import RawSnippet
+from __future__ import annotations
+
+import os
+
 from ai_avatar.research.collectors.base import SourceCollector
+from ai_avatar.research.schemas import RawSnippet
+
+SUBREDDITS = ["explainlikeimfive", "science", "technology", "aviation"]
+MIN_SCORE = 50
+MIN_COMMENTS = 10
+
+
+def reddit_creds_from_env() -> dict[str, str] | None:
+    """Reddit credentials from the environment, or None unless all three are set."""
+    creds = {
+        "client_id": os.getenv("REDDIT_CLIENT_ID"),
+        "client_secret": os.getenv("REDDIT_CLIENT_SECRET"),
+        "user_agent": os.getenv("REDDIT_USER_AGENT"),
+    }
+    return creds if all(creds.values()) else None
 
 
 class RedditCollector(SourceCollector):
+    """Popular posts about the topic. Raises ``ImportError`` at construction if praw is missing."""
 
-    def __init__(self, client_id, client_secret, user_agent):
-        import praw  # optional dependency (`reddit` extra)
+    name = "reddit"
+
+    def __init__(self, client_id: str, client_secret: str, user_agent: str, timeout: float = 10.0) -> None:
+        import praw
 
         self.reddit = praw.Reddit(
             client_id=client_id,
             client_secret=client_secret,
             user_agent=user_agent,
+            requestor_kwargs={"timeout": timeout},
         )
 
-        self.subreddits = [
-            "explainlikeimfive",
-            "science",
-            "technology",
-            "aviation",
-        ]
-
-    def collect(self, topic: str) -> List[RawSnippet]:
-        snippets: List[RawSnippet] = []
-
-        for sub in self.subreddits:
+    def collect(self, topic: str) -> list[RawSnippet]:
+        snippets: list[RawSnippet] = []
+        for sub in SUBREDDITS:
             for post in self.reddit.subreddit(sub).search(topic, limit=3):
-                if getattr(post, "score", 0) < 50 or getattr(post, "num_comments", 0) < 10:
+                score, comments = getattr(post, "score", 0), getattr(post, "num_comments", 0)
+                if score < MIN_SCORE or comments < MIN_COMMENTS:
                     continue
-
                 snippets.append(
                     RawSnippet(
-                        source="reddit",
-                        title=post.title,
-                        text=(getattr(post, "selftext", "") or "")[:1000],
-                        metadata={
-                            "score": getattr(post, "score", 0) + (getattr(post, "num_comments", 0) * 2),
-                            "url": getattr(post, "url", ""),
-                            "subreddit": sub,
-                        },
+                        self.name,
+                        post.title,
+                        (getattr(post, "selftext", "") or "")[:1000],
+                        getattr(post, "url", ""),
+                        {"score": score + comments * 2, "subreddit": sub},
                     )
                 )
-
         return snippets
-

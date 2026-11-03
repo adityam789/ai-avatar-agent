@@ -1,0 +1,7 @@
+[
+  {
+    "title": "ELI5: how can a computer make a still picture talk?",
+    "text": "The model learns how head pose and mouth shapes change with sound, then warps the photo frame by frame to follow that motion.",
+    "url": "https://example.com/r/explainlikeimfive/talking-picture"
+  }
+]

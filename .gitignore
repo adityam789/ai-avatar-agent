@@ -27,3 +27,4 @@ models/**/checkpoints/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.cache/

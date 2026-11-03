@@ -1,51 +1,72 @@
-"""RSS collector stub."""
+"""RSS collector: recent entries from tech-news feeds that actually mention the topic."""
+
+from __future__ import annotations
+
+import html
+import logging
+import re
+
 import feedparser
-from typing import List
-from ai_avatar.research.schemas import RawSnippet
+import requests
+
+from ai_avatar.redact import scrub
 from ai_avatar.research.collectors.base import SourceCollector
+from ai_avatar.research.schemas import RawSnippet
+
+log = logging.getLogger(__name__)
 
 RSS_FEEDS = [
     "https://feeds.arstechnica.com/arstechnica/index",
     "https://techcrunch.com/feed/",
     "https://news.ycombinator.com/rss",
 ]
+ENTRIES_PER_FEED = 5  # newest entries inspected per feed
+_STOPWORDS = {"the", "and", "for", "how", "why", "what", "with", "about", "are", "does", "of", "in", "on", "to", "a"}
+
+
+def _words(text: str) -> set[str]:
+    """Lower-case word set with a trailing plural 's' removed ("computers" matches "computer")."""
+    return {w[:-1] if len(w) > 3 and w.endswith("s") else w for w in re.findall(r"\w+", text.lower())}
+
+
+def matches_topic(topic: str, text: str) -> bool:
+    """True if every significant word of ``topic`` occurs in ``text`` as a whole word.
+
+    "AI" does not match "said" and "rust" does not match "trust"; stopwords like "how" are ignored.
+    """
+    words = _words(topic)
+    needed = words - _STOPWORDS or words
+    return bool(needed) and needed <= _words(text)
+
+
+def _plain(markup: str) -> str:
+    """Feed summaries are often HTML; drop tags and entities."""
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", markup)).split())
 
 
 class RSSCollector(SourceCollector):
+    name = "rss"
 
-    def collect(self, topic: str) -> List[RawSnippet]:
-        snippets = []
+    def __init__(self, feeds: list[str] | None = None, timeout: float = 10.0) -> None:
+        self.feeds = feeds if feeds is not None else RSS_FEEDS
+        self.timeout = timeout
 
-        for feed_url in RSS_FEEDS:
-            feed = feedparser.parse(feed_url)
-            for entry in getattr(feed, "entries", [])[:5]:
-                # be defensive: title/summary may be missing
-                title = getattr(entry, "title", "") or ""
-                summary = getattr(entry, "summary", "") or ""
-
-                # Some feeds put the main content in `content` as a list of dicts
-                content_text = ""
-                if hasattr(entry, "content") and isinstance(entry.content, list) and len(entry.content) > 0:
-                    # feedparser returns content entries as objects with a `value`
-                    first = entry.content[0]
-                    content_text = getattr(first, "value", "") or ""
-
-                hay = (title + "\n" + summary + "\n" + content_text).lower()
-                if topic.lower() not in hay:
-                    # skip entries that don't mention the topic in title/summary/content
+    def collect(self, topic: str) -> list[RawSnippet]:
+        snippets: list[RawSnippet] = []
+        for feed_url in self.feeds:
+            try:
+                # feedparser has no timeout of its own, so download the feed ourselves.
+                resp = requests.get(feed_url, timeout=self.timeout)
+                resp.raise_for_status()
+            except requests.RequestException as exc:
+                log.warning("rss feed %s skipped: %s", feed_url, scrub(exc))
+                continue
+            for entry in feedparser.parse(resp.content).entries[:ENTRIES_PER_FEED]:
+                title = entry.get("title", "") or ""
+                summary = _plain(entry.get("summary", "") or "")
+                content = " ".join(_plain(c.get("value", "")) for c in entry.get("content", []) or [])
+                if not matches_topic(topic, f"{title} {summary} {content}"):
                     continue
-
-                snippets.append(
-                    RawSnippet(
-                        source="rss",
-                        title=title,
-                        text=summary[:1000],
-                        metadata={
-                            "link": getattr(entry, "link", ""),
-                            "published": entry.get("published") if hasattr(entry, "published") else None,
-                        },
-                    )
-                )
-
+                snippets.append(RawSnippet(self.name, title, summary[:1000], entry.get("link", ""),
+                                           {"published": entry.get("published")}))
         return snippets
-
