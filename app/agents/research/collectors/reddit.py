@@ -3,7 +3,6 @@
 This collector expects a configured praw.Reddit instance via client_id,
 client_secret and user_agent. It returns RawSnippet dataclasses.
 """
-import praw
 from typing import List
 from ..schemas import RawSnippet
 from .base import SourceCollector
@@ -12,6 +11,8 @@ from .base import SourceCollector
 class RedditCollector(SourceCollector):
 
     def __init__(self, client_id, client_secret, user_agent):
+        import praw  # optional dependency (`reddit` extra)
+
         self.reddit = praw.Reddit(
             client_id=client_id,
             client_secret=client_secret,

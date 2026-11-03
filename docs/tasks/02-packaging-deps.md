@@ -24,3 +24,21 @@
 
 ## Open questions
 - Is the owner's machine Apple Silicon (MPS) or CUDA? Note device handling in Task 08.
+
+## Results (2026-11-03)
+- Target Python 3.10 (`.venv` is 3.10.19; `.python-version` added). Machine is Apple Silicon (arm64) -> MPS, not CUDA.
+- Fresh venv: `pip install -e ".[dev]"` ~13 s, no torch; `pytest` passes (1 smoke test).
+- `pip install --dry-run -e ".[tts]"` resolves; `-e ".[avatar]"` resolves; **`-e ".[tts,avatar]"` does NOT** — modern
+  `coqui-tts` needs newer numpy/scipy/librosa/torch than SadTalker's exact pins. Documented in `docs/KNOWN_ISSUES.md`.
+  This partly misses the acceptance criterion as written ("`.[tts,avatar]` ... resolve"); each extra resolves on its own.
+- Removed unused deps: `fastapi/uvicorn` (now `[api]`), `ffmpeg-python`, `faiss-cpu`, `sentence-transformers`,
+  `tokenizers`/`transformers` (come in via TTS), duplicate `praw`. Added `pyyaml`.
+- `requirements.txt` kept as a shim: `-e .[reddit]` plus comments (tts/avatar excluded because they conflict).
+- Lazy imports: `TTS` (in `tts.py`) and `praw` (in `reddit.py`) are now imported on first use. Further lazy-loading of the
+  SadTalker import happens when those files are rewritten in Tasks 03/08. A minimal `src/ai_avatar/__init__.py` exists so
+  the editable install works; Task 03 fills the package.
+- Task 10 README should recommend per-extra installs. `ai-avatar` console script is non-functional until `ai_avatar.cli` exists (Task 05).
+- Review round 1: no blockers; 5 doc/packaging nits fixed (requires-python <3.12, requirements shim, wording).
+
+## Open questions (answered with defaults)
+- Two venvs vs relaxed SadTalker pins? Default: document two venvs; revisit on real hardware.
