@@ -333,3 +333,35 @@ def test_dry_run_rejects_resume_dirs_missing_inputs_or_for_another_topic(ready_m
     (run_dir / "run.json").write_text(json.dumps({"topic": "other"}))
     assert cli.main(["run", "x", "--dry-run", "--resume", str(run_dir)]) == 1
     assert "was created for topic 'other'" in capsys.readouterr().out
+
+
+def test_dry_run_requires_checkpoints_image_and_loop_only_for_the_stages_that_read_them(
+    ready_machine, capsys, tmp_path, monkeypatch
+):
+    run_dir = tmp_path / "r"
+    run_dir.mkdir()
+    (run_dir / "avatar.mp4").write_text("v")
+    (tmp_path / "sad" / "checkpoints").rmdir()  # weights not downloaded
+    (tmp_path / "me.png").unlink()  # avatar image missing (e.g. fresh clone without the submodule)
+    compose_only = ["run", "x", "--dry-run", "--resume", str(run_dir), "--only-stage", "compose"]
+    assert cli.main(compose_only) == 0  # compose reads neither
+    assert "Ready." in capsys.readouterr().out
+    assert cli.main(["run", "x", "--dry-run", "--offline", "--resume", str(run_dir), "--only-stage", "compose"]) == 0
+    capsys.readouterr()
+
+    wav = tmp_path / "a.wav"
+    wav.write_text("w")
+    avatar_on = ["run", "x", "--dry-run", "--audio", str(wav), "--from-stage", "avatar"]
+    assert cli.main(avatar_on) == 1
+    out = capsys.readouterr().out
+    assert "SadTalker checkpoints" in out.split("Not ready")[1] and "avatar image" in out.split("Not ready")[1]
+
+    (tmp_path / "loop.mp4").unlink()  # loop is needed by compose, which a from-avatar run also plans
+    (tmp_path / "me.png").write_text("x")
+    (tmp_path / "sad" / "checkpoints").mkdir()
+    assert cli.main(avatar_on) == 1
+    assert "background loop" in capsys.readouterr().out.split("Not ready")[1]
+    assert cli.main([*avatar_on, "--offline"]) == 1  # offline fakes still need the loop file
+    capsys.readouterr()
+    (tmp_path / "loop.mp4").write_text("x")
+    assert cli.main(avatar_on) == 0
