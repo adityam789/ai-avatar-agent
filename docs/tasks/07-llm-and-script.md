@@ -18,3 +18,43 @@ A small, reliable, provider-agnostic LLM layer and a script generator with bette
 ## Acceptance criteria
 - Unit tests with mocked `requests` for: retry on 429, fallback models, missing key error, malformed response.
 - Script word-count enforcement test.
+
+## Results (2026-11-03)
+
+**Done**
+- `llm/client.py`: `LLMClient(models, base_url, api_key, *, max_retries, timeout_seconds, referer, title, sleep)`. Works with any
+  OpenAI-compatible chat-completions endpoint (set `llm.base_url` + `llm.models`; documented in the module docstring). With more than one
+  model the payload carries OpenRouter's `models` fallback array; the client also retries 429/500/502/503/504 and timeouts/connection
+  errors with exponential backoff (1 s, 2 s, 4 s...). `llm.max_retries` counts retries after the first attempt (3 -> up to 4 requests).
+  Other 4xx fail immediately (401/403 hint at `OPEN_ROUTER_API_KEY`). Responses must contain a non-empty `choices[0].message.content`,
+  otherwise `LLMError`; the legacy `response` field and the "return raw text" fallback are gone. A JSON `error` body on HTTP 200 is an
+  `LLMError`. All error text goes through `redact.scrub`; only a short `error.message` is quoted, never the raw body; headers are not logged.
+- Missing key: the client sends no `Authorization` header and raises `LLMError` naming `OPEN_ROUTER_API_KEY` on the first call, before any
+  request. `OPEN_ROUTER_REFERER` / `OPEN_ROUTER_TITLE` are optional headers. Import-time `load_dotenv()` removed (the CLI loads `.env`).
+- `llm/__init__.py`: `build_llm(cfg)` returns `FakeLLM` when `cfg.offline`, else an `LLMClient` from `cfg.llm` + environment.
+- `llm/fake.py`: `FakeLLM` implements the shared marker contract (`TASK: extract_facts` -> JSON facts from `Title: ` lines, max 4;
+  `TASK: write_script` -> canned ~45-word narration naming the `Topic:` line, else first `- ` fact; anything else -> `LLMError`).
+- `stages/script.py` + `prompts/script.md` (package data, added to `pyproject.toml`): template variables topic/facts/target words/seconds/tone.
+  Word budget = `target_seconds * 2.5` +-25% (18 s -> 45 words, accepted 34-56). Out of range -> one retry with a corrective note appended;
+  still too long -> trimmed at a sentence boundary (hard cut if one sentence exceeds the budget); still too short -> kept with a warning
+  (cannot be padded honestly). `sanitize_for_tts` strips leading "Here is the script:" labels, markdown, emoji, `(...)`/`[...]` asides, double
+  quotes and single-quote marks (apostrophes kept), hashtags, and collapses whitespace. Saving `script.txt` stays in `pipeline.py`'s adapter.
+
+**Verified**
+- `pytest` in a fresh venv (`pip install -e ".[dev]"`): 146 passed, 1 skipped, 1 deselected. New: `tests/test_llm_client.py` (mocked
+  `requests.post`: retry on 429/5xx with backoff, gives up, timeout, no retry on 401, fallback `models` payload, missing key sends nothing,
+  8 malformed shapes, scrubbing, `build_llm`), `tests/test_llm_fake.py`, `tests/test_script_stage.py` (prompt contract, budget boundaries,
+  retry, trim, sanitizer table). Mutation check: disabling the non-retryable-status branch fails 2 tests.
+- A non-editable `pip install --target` of the worktree contains `ai_avatar/prompts/script.md`.
+- `ruff check --line-length 120` is clean on the files touched (no ruff config exists yet; Task 09).
+
+**Not verified**: any real OpenRouter call (no network/key by rule); whether a non-OpenRouter server tolerates the extra `models` field
+(it is only sent when more than one model is configured).
+
+**Deviations / notes**
+- Model fallback is OpenRouter's server-side `models` array plus same-request client retries; there is no client-side "try next model" loop.
+- `tests/test_research_live.py` still calls `LLMClient()` with no arguments (old signature); it is an integration test owned by Task 06.
+
+**Open questions for Aditya**
+- Should `llm.max_retries: 3` mean 3 retries (4 requests, current) or 3 total attempts?
+- Should the CLI warn when `llm.models` contains only a single `:free` model (these rotate/throttle)?
