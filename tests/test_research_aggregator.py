@@ -126,3 +126,9 @@ def test_error_does_not_leak_secret_urls_from_the_reply(monkeypatch):
     with pytest.raises(LLMError) as err:
         LLMAggregator(StubLLM("see https://x.test/?key=SECRETVALUE123")).aggregate("t", [snip()])
     assert "SECRETVALUE123" not in str(err.value)
+
+
+def test_absurdly_nested_reply_is_an_llm_error_not_a_crash():
+    agg = LLMAggregator(lambda prompt: '{"a":' * 3000)
+    with pytest.raises(LLMError):
+        agg.aggregate("topic", [RawSnippet("rss", "t", "x", {})])

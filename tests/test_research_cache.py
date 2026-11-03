@@ -140,3 +140,12 @@ def test_store_writes_through_a_temp_file_in_the_same_directory(tmp_path, monkey
     (src, dst), = moves
     assert src.parent == dst.parent == tmp_path and src != dst and src.suffix == ".tmp"
     assert [p.name for p in tmp_path.iterdir()] == [dst.name]
+
+
+def test_disk_cache_leaves_no_temp_file_when_serialising_fails(tmp_path):
+    cache = DiskResearchCache(tmp_path / "c", ttl_hours=24, clock=Clock())
+    bad = bundle()
+    bad.source_links.append({"source": "rss", "title": object(), "url": "u"})  # json.dump raises TypeError
+    with pytest.raises(TypeError):
+        cache.store(bad)
+    assert list((tmp_path / "c").glob("*")) == []

@@ -92,7 +92,10 @@ class DiskResearchCache(ResearchCache):
                 tmp_name = tmp.name
                 json.dump({"stored_at": now, "bundle": asdict(bundle)}, tmp, indent=2)
             os.replace(tmp_name, path)
-        except OSError as exc:  # a read-only cache directory must not fail the run
-            log.warning("could not write research cache file %s (%s)", path, type(exc).__name__)
+        except BaseException as exc:
             if tmp_name:
-                Path(tmp_name).unlink(missing_ok=True)
+                Path(tmp_name).unlink(missing_ok=True)  # never leave a stray temp file behind
+            if not isinstance(exc, OSError):
+                raise
+            # a read-only cache directory must not fail the run
+            log.warning("could not write research cache file %s (%s)", path, type(exc).__name__)

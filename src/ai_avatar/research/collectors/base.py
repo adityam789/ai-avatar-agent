@@ -44,7 +44,7 @@ def safe_collect(collector: SourceCollector, topic: str, timeout: float | None =
     def work() -> None:
         try:
             outcome.append(collector.collect(topic))
-        except Exception as exc:  # noqa: BLE001 - isolating arbitrary collector failures is the point
+        except BaseException as exc:  # noqa: BLE001 - incl. SystemExit: one bad collector must not stop research
             errors.append(exc)
 
     worker = threading.Thread(target=work, name=f"collect-{name}", daemon=True)
@@ -56,4 +56,8 @@ def safe_collect(collector: SourceCollector, topic: str, timeout: float | None =
     if errors:
         log.warning("%s collector failed (%s): %s", name, type(errors[0]).__name__, scrub(errors[0]))
         return []
-    return outcome[0]
+    snippets = outcome[0]
+    if not isinstance(snippets, list) or not all(isinstance(s, RawSnippet) for s in snippets):
+        log.warning("%s collector returned %s instead of a list of RawSnippet; skipped", name, type(snippets).__name__)
+        return []
+    return snippets

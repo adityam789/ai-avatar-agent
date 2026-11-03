@@ -93,3 +93,10 @@ Research survives dead services. Each source is optional, failures are logged no
 - Dedup: by normalised URL when present, otherwise by `(source, title)`.
 - Tests: new cases for every item above, including a hung collector (0.2 s timeout), a nameless collector with an env secret, atomic cache write and
   backwards clock. Verified they fail against the pre-fix source (22 failures) and pass now.
+
+### Review round 2 (PASS) and orchestrator follow-ups
+Round 2 confirmed all round-1 fixes. Residuals fixed afterwards: `safe_collect` survives `SystemExit` in a collector and rejects results
+that are not a list of `RawSnippet`; `RecursionError` from absurdly nested LLM replies becomes `LLMError`; the disk cache removes its temp
+file on any failure. **Known limitation (not fixed):** the trailing-comma repair in `llm/json_utils.py` runs only after a strict parse
+fails and is a plain regex, so it could alter a `, ]` sequence *inside a string* of a damaged reply, and pathological input with tens of
+thousands of `{` is O(n^2) (~1 s at 35k braces). Acceptable for LLM replies of a few KB.

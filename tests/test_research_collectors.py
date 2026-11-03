@@ -445,3 +445,38 @@ def test_offline_mode_replaces_every_collector_with_a_fixture_reader(monkeypatch
     assert names(collectors) == ["rss", "web_search", "reddit"]
     assert all(isinstance(c, FixtureCollector) for c in collectors)
     assert all(safe_collect(c, "any topic") for c in collectors)  # bundled fixtures exist for each
+
+
+class _Exits(SourceCollector):
+    name = "exits"
+
+    def collect(self, topic):
+        raise SystemExit(3)
+
+
+class _ReturnsJunk(SourceCollector):
+    name = "junk"
+
+    def __init__(self, value):
+        self.value = value
+
+    def collect(self, topic):
+        return self.value
+
+
+def test_safe_collect_survives_systemexit_in_a_collector():
+    assert safe_collect(_Exits(), "t", timeout=2) == []
+
+
+@pytest.mark.parametrize(
+    "value", [None, "text", (s for s in []), [{"title": "dict, not RawSnippet"}], [RawSnippet("a", "t", "x", {}), 3]]
+)
+def test_safe_collect_rejects_results_that_are_not_a_list_of_snippets(value, caplog):
+    with caplog.at_level(logging.WARNING):
+        assert safe_collect(_ReturnsJunk(value), "t", timeout=2) == []
+    assert "instead of a list of RawSnippet" in caplog.text
+
+
+def test_safe_collect_passes_valid_snippets_through():
+    snippets = [RawSnippet("a", "t", "x", {})]
+    assert safe_collect(_ReturnsJunk(snippets), "t", timeout=2) == snippets
