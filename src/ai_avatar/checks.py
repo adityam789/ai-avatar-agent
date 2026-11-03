@@ -32,7 +32,11 @@ class Check:
 
 
 def check_environment(cfg: Config) -> list[Check]:
-    """Static checks for a real run: binaries, input files, model checkpoints, env var names."""
+    """Static checks: binaries, input files, model checkpoints, env var names.
+
+    With ``cfg.offline`` the checkpoints and API keys are reported but not required (the fakes need
+    neither); ffmpeg, ffprobe, the avatar image and the background loop still are.
+    """
     checks = [
         Check("ffmpeg", shutil.which("ffmpeg") is not None, shutil.which("ffmpeg") or "not on PATH"),
         Check("ffprobe", shutil.which("ffprobe") is not None, shutil.which("ffprobe") or "not on PATH"),
@@ -43,12 +47,13 @@ def check_environment(cfg: Config) -> list[Check]:
         loop = cfg.resolve(cfg.background.loop)
         checks.append(Check("background loop", loop.is_file(), str(loop)))
     ckpt = cfg.sadtalker_checkpoints
-    checks.append(
-        Check("SadTalker checkpoints", ckpt.is_dir(), str(ckpt) + ("" if ckpt.is_dir() else " (download weights with models/sad_talker/scripts/download_models.sh)"))
-    )
+    hint = "" if ckpt.is_dir() else " (download weights with models/sad_talker/scripts/download_models.sh)"
+    checks.append(Check("SadTalker checkpoints", ckpt.is_dir(), str(ckpt) + hint, required=not cfg.offline))
     for name, (purpose, required, _secret) in ENV_VARS.items():
         is_set = bool(os.getenv(name))
-        checks.append(Check(f"env {name}", is_set, f"{'set' if is_set else 'unset'} - {purpose}", required))
+        checks.append(
+            Check(f"env {name}", is_set, f"{'set' if is_set else 'unset'} - {purpose}", required and not cfg.offline)
+        )
     return checks
 
 

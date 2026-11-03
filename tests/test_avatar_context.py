@@ -1,6 +1,7 @@
 """The SadTalker context manager must restore sys.path/argv even when SadTalker raises."""
 
 import importlib.util
+import os
 import sys
 
 import pytest
@@ -29,3 +30,17 @@ def test_sadtalker_src_wins_over_repo_src():
     with _sadtalker_context(cfg):
         spec = importlib.util.find_spec("src.utils.preprocess")
     assert spec and str(cfg.sadtalker_dir) in spec.origin
+
+
+def test_chdir_option_switches_and_restores_the_working_directory(tmp_path):
+    cfg = load_config(environ={})
+    cfg.root = tmp_path
+    (tmp_path / "models" / "sad_talker").mkdir(parents=True)
+    cwd = os.getcwd()
+    with _sadtalker_context(cfg):
+        assert os.getcwd() == cwd  # untouched by default
+    with pytest.raises(RuntimeError):
+        with _sadtalker_context(cfg, chdir=True):
+            assert os.getcwd() == str((tmp_path / "models" / "sad_talker").resolve())
+            raise RuntimeError("boom")
+    assert os.getcwd() == cwd
