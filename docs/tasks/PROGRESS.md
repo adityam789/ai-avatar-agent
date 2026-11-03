@@ -4,7 +4,7 @@
 |------|--------|--------|-------|
 | 01 Security hygiene | done | 352b535 | gitleaks: tree clean, history 1 known finding (rotate; rewrite not run). Review: no blockers, 3 nits fixed |
 | 02 Packaging & deps | done | 297f35b | .[dev] installs in ~13s, pytest ok. PARTIAL: .[tts,avatar] cannot co-resolve (documented, owner question). Review: no blockers |
-| 03 Package & config | pending | - | |
+| 03 Package & config | done | 16e502c | src/ai_avatar layout, pydantic Config, SadTalker CWD/shadowing handled w/o submodule edits. Review: round1 FAIL (src namespace shadowing) -> fixed, round2 PASS |
 | 04 Orchestrator | pending | - | |
 | 05 CLI | pending | - | |
 | 06 Research robustness | pending | - | |

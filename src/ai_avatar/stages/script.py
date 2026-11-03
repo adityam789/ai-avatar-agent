@@ -1,8 +1,5 @@
-"""Script stage: research the topic, then ask the LLM for a short narration."""
+"""Script stage: turn researched facts into a short narration with the LLM."""
 
-import os
-
-from ai_avatar.research import run_research
 from ai_avatar.llm.client import LLMClient
 
 try:
@@ -11,32 +8,15 @@ try:
 except Exception:
     pass
 
-def generate_script(topic: str, llm_client: object | None = None) -> str:
-    """Generate a short narration script for `topic` by running the research
-    pipeline and asking an LLM to synthesize a 12–15s narration from the facts.
 
-    Errors from the research pipeline or the LLM call are allowed to propagate
-    so the caller can see and fix them.
+def generate_script(topic: str, facts: list[str], llm_client: object | None = None) -> str:
+    """Ask the LLM for a ~15-20 second narration about ``topic`` built from ``facts``.
+
+    Errors from the LLM call propagate so the caller can see and fix them.
     """
-    # Gather reddit credentials from environment (loaded from .env by LLMClient module)
-    reddit_client_id = os.getenv("REDDIT_CLIENT_ID")
-    reddit_client_secret = os.getenv("REDDIT_CLIENT_SECRET")
-    reddit_user_agent = os.getenv("REDDIT_USER_AGENT")
-
-    reddit_creds = None
-    if reddit_client_id and reddit_client_secret and reddit_user_agent:
-        reddit_creds = {
-            "client_id": reddit_client_id,
-            "client_secret": reddit_client_secret,
-            "user_agent": reddit_user_agent,
-        }
-
-    bundle = run_research(topic, reddit_creds=reddit_creds)
-    facts = bundle.facts if hasattr(bundle, "facts") else []
-
     prompt = (
         f"You are a short-form narration writer. Given these verified facts about {topic}:\n"
-        + "\n".join([f"- {f}" for f in facts])
+        + "\n".join(f"- {f}" for f in facts)
         + "\n\nWrite a single-paragraph narration of ~15-20 seconds. Keep it factual, concise, and engaging."
     )
 

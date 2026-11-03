@@ -1,10 +1,14 @@
 """Talking-head stage: drives a still image with audio using SadTalker (git submodule)."""
 
+import logging
 import sys
 from contextlib import contextmanager
 from pathlib import Path
 
 from ai_avatar.config import Config
+from ai_avatar.errors import AvatarError
+
+log = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -35,6 +39,7 @@ def _sadtalker_context(cfg: Config):
 def generate_avatar(audio_path: Path, image_path: Path, result_dir: Path, cfg: Config) -> Path:
     """Render the talking-head video into ``result_dir`` and return its path."""
     result_dir.mkdir(parents=True, exist_ok=True)
+    before = {p: p.stat().st_mtime_ns for p in result_dir.glob("*.mp4")}
     checkpoints = cfg.sadtalker_checkpoints
     with _sadtalker_context(cfg):
         from models.sad_talker.inference import run  # heavy; requires the `avatar` extra
@@ -48,5 +53,12 @@ def generate_avatar(audio_path: Path, image_path: Path, result_dir: Path, cfg: C
             still=True,
             preprocess="full",
         )
-    # TODO(Task 04/08): have the wrapper return the output path instead of globbing.
-    return sorted(result_dir.glob("*.mp4"))[-1]
+    new = sorted(
+        (p for p in result_dir.glob("*.mp4") if before.get(p) != p.stat().st_mtime_ns),
+        key=lambda p: p.stat().st_mtime_ns,
+    )
+    if not new:
+        raise AvatarError(f"SadTalker finished but wrote no new .mp4 to {result_dir}")
+    if len(new) > 1:
+        log.warning("SadTalker wrote %d videos to %s; using the newest: %s", len(new), result_dir, new[-1].name)
+    return new[-1]
