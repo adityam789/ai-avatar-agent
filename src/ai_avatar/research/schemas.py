@@ -1,22 +1,28 @@
-"""Data schemas for the research agent.
+"""Data shapes shared by the research package."""
 
-Small, dependency-free data shapes used within the research package.
-"""
-from dataclasses import dataclass
-from typing import Dict, List, Literal
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Literal
+
 
 @dataclass
 class RawSnippet:
-    source: str
+    """One piece of text found by a collector."""
+
+    source: str  # collector name: "rss", "web_search" or "reddit"
     title: str
     text: str
-    metadata: Dict
+    url: str = ""
+    metadata: dict = field(default_factory=dict)
+
 
 @dataclass
 class ResearchBundle:
+    """Result of the research stage; written to ``research.json`` (the script stage reads ``facts``)."""
+
     topic: str
-    facts: List[str]
+    facts: list[str]
     freshness: Literal["cached", "fresh"]
-    sources: List[str]
-
-
+    sources: list[str]  # names of the collectors that contributed snippets
+    source_links: list[dict[str, str]] = field(default_factory=list)  # {"source", "title", "url"} per snippet used

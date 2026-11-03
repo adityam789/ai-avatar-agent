@@ -50,6 +50,8 @@ avatar = [
 ]
 # Optional Reddit research source (API access now requires approval).
 reddit = ["praw"]
+# Default web-search provider for the research stage (DuckDuckGo, no API key).
+search = ["ddgs"]
 dev = ["pytest", "pytest-cov", "ruff"]
 api = ["fastapi", "uvicorn"]
 

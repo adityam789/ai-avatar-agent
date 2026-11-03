@@ -1,0 +1,17 @@
+[
+  {
+    "title": "How AI avatar video generation works",
+    "text": "A typical pipeline writes a short script with a language model, converts it to speech, animates a portrait to match the audio and composites the result over background footage.",
+    "url": "https://example.com/guides/ai-avatar-video"
+  },
+  {
+    "title": "Vertical video: why 9:16 dominates short-form platforms",
+    "text": "Short-form platforms display video full-screen on phones, so 1080x1920 portrait clips avoid letterboxing and keep subjects large on screen.",
+    "url": "https://example.com/guides/vertical-video"
+  },
+  {
+    "title": "Talking-head models turn a single photo into a speaking video",
+    "text": "Duplicate of the RSS item above (same URL) to show that snippets are de-duplicated before prompting.",
+    "url": "https://example.com/news/talking-head-single-photo/"
+  }
+]

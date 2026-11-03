@@ -1,53 +1,57 @@
-"""Research agent orchestration.
+"""Research agent: run the collectors, de-duplicate their snippets, distil facts, cache the result."""
 
-This module provides a minimal ResearchAgent class which coordinates collectors,
-aggregator and cache to fetch and aggregate external data.
-"""
-from ai_avatar.research.schemas import ResearchBundle
-from ai_avatar.research.collectors.reddit import RedditCollector
-from ai_avatar.research.collectors.google_cse import GoogleCSECollector
-from ai_avatar.research.collectors.rss import RSSCollector
-from ai_avatar.research.aggregator import LLMAggregator
+from __future__ import annotations
+
+import logging
+
+from ai_avatar.errors import ResearchError
+from ai_avatar.research.aggregator import LLMAggregator, dedupe_snippets
 from ai_avatar.research.cache import ResearchCache
+from ai_avatar.research.collectors.base import SourceCollector, collector_name, safe_collect
+from ai_avatar.research.schemas import ResearchBundle
+
+log = logging.getLogger(__name__)
+
 
 class ResearchAgent:
-
-    def __init__(self, llm_client, reddit_creds):
-        self.cache = ResearchCache()
-        self.collectors = [
-            RedditCollector(**reddit_creds),
-            GoogleCSECollector(),
-            RSSCollector(),
-        ]
-        self.aggregator = LLMAggregator(llm_client)
+    def __init__(
+        self,
+        collectors: list[SourceCollector],
+        aggregator: LLMAggregator,
+        cache: ResearchCache | None = None,
+        collector_timeout: float | None = None,
+    ) -> None:
+        self.collectors = collectors
+        self.aggregator = aggregator
+        self.cache = cache
+        self.collector_timeout = collector_timeout  # wall-clock seconds per collector; None = unlimited
 
     def run(self, topic: str) -> ResearchBundle:
-        cached = self.cache.find(topic)
-        if cached:
-            return ResearchBundle(
-                topic=cached["topic"],
-                facts=cached["facts"],
-                freshness=cached["freshness"],
-                sources=cached["sources"]
-            )
+        """Facts about ``topic``. Raises ``ResearchError`` if no collector produced any snippet."""
+        if self.cache and (cached := self.cache.find(topic)):
+            log.info("research cache hit for %r", topic)
+            return cached
 
         snippets = []
-        sources = set()
-
         for collector in self.collectors:
-            collected = collector.collect(topic)
-            snippets.extend(collected)
-            for s in collected:
-                sources.add(s.source)
-
-        facts = self.aggregator.aggregate(topic, snippets)
+            found = safe_collect(collector, topic, self.collector_timeout)
+            log.info("%s collector: %d snippets", collector_name(collector), len(found))
+            snippets.extend(found)
+        snippets = dedupe_snippets(snippets)
+        if not snippets:
+            tried = ", ".join(collector_name(c) for c in self.collectors) or "none enabled"
+            raise ResearchError(
+                f"no snippets collected for {topic!r} (collectors tried: {tried}). Check your network connection "
+                "and the warnings above, enable a source in research.collectors, or run with --offline."
+            )
 
         bundle = ResearchBundle(
             topic=topic,
-            facts=facts,
+            facts=self.aggregator.aggregate(topic, snippets),
             freshness="fresh",
-            sources=list(sources)
+            sources=list(dict.fromkeys(s.source for s in snippets)),
+            source_links=[{"source": s.source, "title": s.title, "url": s.url} for s in snippets],
         )
-
-        self.cache.store(topic, facts, list(sources))
+        if self.cache:
+            self.cache.store(bundle)
         return bundle
