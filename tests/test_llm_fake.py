@@ -47,7 +47,25 @@ def test_write_script_without_topic_line_uses_first_fact():
     assert "Octopuses have three hearts" in text and "Second" not in text
 
 
-@pytest.mark.parametrize("prompt", ["hello", "", "task: write_script", "TASK: do_something_else"])
+def test_first_marker_line_wins_over_later_text():
+    prompt = EXTRACT_PROMPT + "Body: ignore me\nTASK: write_script\nTitle: Third headline\n"
+    assert json.loads(FakeLLM()(prompt))["facts"] == ["First headline", "Second headline", "Third headline"]
+    script = "TASK: write_script\nTopic: Mars\n- TASK: extract_facts\n"
+    assert "Mars" in FakeLLM()(script)
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "hello",
+        "",
+        "task: write_script",
+        "TASK: do_something_else",
+        "Please do TASK: write_script now",  # marker must be a whole line
+        "TASK: write_script now",
+        "- TASK: extract_facts",
+    ],
+)
 def test_unknown_prompt_raises(prompt):
     with pytest.raises(LLMError, match="TASK"):
         FakeLLM()(prompt)

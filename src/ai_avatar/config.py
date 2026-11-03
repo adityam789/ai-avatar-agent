@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 ENV_PREFIX = "AI_AVATAR__"
 
@@ -77,8 +77,8 @@ class LLMConfig(_Section):
 
     base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     models: list[str]
-    max_retries: int = 3
-    timeout_seconds: float = 120.0
+    max_retries: int = Field(default=3, ge=0)
+    timeout_seconds: float = Field(default=120.0, gt=0)
 
 
 class ScriptConfig(_Section):

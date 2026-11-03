@@ -48,13 +48,24 @@ A small, reliable, provider-agnostic LLM layer and a script generator with bette
 - A non-editable `pip install --target` of the worktree contains `ai_avatar/prompts/script.md`.
 - `ruff check --line-length 120` is clean on the files touched (no ruff config exists yet; Task 09).
 
-**Not verified**: any real OpenRouter call (no network/key by rule); whether a non-OpenRouter server tolerates the extra `models` field
-(it is only sent when more than one model is configured).
+**Not verified**: any real OpenRouter call (no network/key by rule).
 
 **Deviations / notes**
-- Model fallback is OpenRouter's server-side `models` array plus same-request client retries; there is no client-side "try next model" loop.
+- Model fallback: see "Review round 1 fixes" (server-side `models` array on openrouter.ai only, client-side loop elsewhere).
 - `tests/test_research_live.py` still calls `LLMClient()` with no arguments (old signature); it is an integration test owned by Task 06.
 
 **Open questions for Aditya**
 - Should `llm.max_retries: 3` mean 3 retries (4 requests, current) or 3 total attempts?
 - Should the CLI warn when `llm.models` contains only a single `:free` model (these rotate/throttle)?
+
+**Review round 1 fixes**
+- Sanitizer: a leading label is stripped only when it ends the first line (no more eating text up to a later colon); stage-direction
+  parentheticals (allow-list, `[...]`, `(*...*)`) are removed, ordinary ones keep their words without the parentheses; markdown markers are
+  stripped only when paired (`snake_case` survives); `#1` -> "number 1", `~50` -> "about 50"; U+20E3 handled; unclosed `(` never survives.
+- `trim_to_words(text, max, min=0)` hard-cuts at `max` words when whole sentences leave fewer than `min` ("Wow.", "Dr."), without doubling
+  final punctuation. The corrective retry now only wins if its word count is closer to the target. Budgets round half-up.
+- Client: `models` array only for `*.openrouter.ai`; elsewhere models are tried one by one (after retries are exhausted, or on 404).
+  Retries cover 408/425/429/5xx, honour `Retry-After` (capped at 30 s), and treat an HTTP 200 body with `error.code` like that status.
+  Constructor key is masked in every message and log line, request errors are raised `from None`, blank keys count as missing, no
+  `AssertionError` path. `llm.max_retries >= 0` and `llm.timeout_seconds > 0` are validated in `LLMConfig` (and in the client).
+- `FakeLLM` uses the first whole-line `TASK: <name>` marker; the script prompt no longer says "(none provided)" and collapses topic whitespace.
