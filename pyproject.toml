@@ -59,6 +59,9 @@ ai-avatar = "ai_avatar.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+ai_avatar = ["prompts/*.md"]  # LLM prompt templates ship with the package
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q -m 'not integration'"
