@@ -3,7 +3,8 @@
 from ai_avatar.research.agent import ResearchAgent
 from ai_avatar.research.aggregator import LLMAggregator
 from ai_avatar.research.cache import ResearchCache
-from ai_avatar.llm.client import LLMClient
+from ai_avatar.config import Config
+from ai_avatar.llm import build_llm
 import os
 
 
@@ -17,20 +18,10 @@ def reddit_creds_from_env() -> dict | None:
     return creds if all(creds.values()) else None
 
 
-def run_research(topic: str, llm_client: object | None = None, reddit_creds: dict | None = None):
-    """Programmatic entrypoint: run the research pipeline and return a ResearchBundle.
-
-    If `llm_client` is not supplied, an `LLMClient()` will be instantiated using
-    environment configuration (OPEN_ROUTER_API_KEY). `reddit_creds` is passed
-    through to the ResearchAgent constructor.
-    """
-    if llm_client is None:
-        llm_client = LLMClient()
-
-    if reddit_creds is None:
-        reddit_creds = {}
-
-    agent = ResearchAgent(llm_client, reddit_creds)
+def run_research(topic: str, cfg: Config):
+    """Research ``topic`` and return a ResearchBundle (Task 06 reworks the collectors behind this)."""
+    agent = ResearchAgent(build_llm(cfg), reddit_creds_from_env() or {})
     return agent.run(topic)
+
 
 __all__ = ["reddit_creds_from_env", "run_research", "ResearchAgent", "LLMAggregator", "ResearchCache"]

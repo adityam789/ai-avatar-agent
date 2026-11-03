@@ -306,11 +306,11 @@ def test_unexpected_exceptions_are_wrapped_with_stage_error_type(cfg, fake_stage
 def test_real_adapters_pass_topic_and_facts_through(cfg, monkeypatch, tmp_path):
     seen = {}
 
-    def fake_run_research(topic, llm_client=None, reddit_creds=None):
+    def fake_run_research(topic, config):
         seen["research_topic"] = topic
         return ResearchBundle(topic=topic, facts=["fact one", "fact two"], freshness="fresh", sources=["rss"])
 
-    def fake_generate_script(topic, facts, llm_client=None):
+    def fake_generate_script(topic, facts, config):
         seen["script_args"] = (topic, facts)
         return "the narration"
 
@@ -329,8 +329,8 @@ def test_real_adapters_pass_topic_and_facts_through(cfg, monkeypatch, tmp_path):
 def test_real_adapters_wire_tts_avatar_compose_paths(cfg, monkeypatch):
     calls = {}
 
-    def fake_tts(script, output_path, tts_cfg):
-        calls["tts"] = (script, output_path.name, tts_cfg.voice)
+    def fake_tts(script, output_path, config):
+        calls["tts"] = (script, output_path.name, config.tts.voice)
         output_path.write_text("wav")
 
     def fake_avatar(audio, image, result_dir, config):
@@ -340,8 +340,8 @@ def test_real_adapters_wire_tts_avatar_compose_paths(cfg, monkeypatch):
         video.write_text("avatar video")
         return video
 
-    def fake_compose(avatar_video, loop_video, output_path, avatar_ratio, width, height):
-        calls["compose"] = (avatar_video.name, loop_video.name, avatar_ratio, width, height)
+    def fake_compose(avatar_video, loop_video, output_path, config):
+        calls["compose"] = (avatar_video.name, loop_video.name, config.avatar.height_ratio, config.video.width, config.video.height)
         output_path.write_text("final")
 
     monkeypatch.setattr("ai_avatar.stages.tts.generate_audio", fake_tts)

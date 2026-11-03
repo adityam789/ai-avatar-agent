@@ -75,9 +75,9 @@ class Stage:
 def _research(ctx: RunContext) -> None:
     from dataclasses import asdict
 
-    from ai_avatar.research import reddit_creds_from_env, run_research
+    from ai_avatar.research import run_research
 
-    bundle = run_research(ctx.topic, reddit_creds=reddit_creds_from_env())
+    bundle = run_research(ctx.topic, ctx.cfg)
     ctx.path("research.json").write_text(json.dumps(asdict(bundle), indent=2))
 
 
@@ -85,13 +85,13 @@ def _script(ctx: RunContext) -> None:
     from ai_avatar.stages.script import generate_script
 
     facts = json.loads(ctx.path("research.json").read_text())["facts"]
-    ctx.path("script.txt").write_text(generate_script(ctx.topic, facts))
+    ctx.path("script.txt").write_text(generate_script(ctx.topic, facts, ctx.cfg))
 
 
 def _tts(ctx: RunContext) -> None:
     from ai_avatar.stages.tts import generate_audio
 
-    generate_audio(ctx.path("script.txt").read_text(), ctx.path("audio.wav"), ctx.cfg.tts)
+    generate_audio(ctx.path("script.txt").read_text(), ctx.path("audio.wav"), ctx.cfg)
 
 
 def _avatar(ctx: RunContext) -> None:
@@ -110,14 +110,7 @@ def _compose(ctx: RunContext) -> None:
         return
     from ai_avatar.stages.compose import compose
 
-    compose(
-        avatar_video=ctx.path("avatar.mp4"),
-        loop_video=cfg.resolve(cfg.background.loop),
-        output_path=ctx.path("final.mp4"),
-        avatar_ratio=cfg.avatar.height_ratio,
-        width=cfg.video.width,
-        height=cfg.video.height,
-    )
+    compose(ctx.path("avatar.mp4"), cfg.resolve(cfg.background.loop), ctx.path("final.mp4"), cfg)
 
 
 DEFAULT_STAGES: tuple[Stage, ...] = (

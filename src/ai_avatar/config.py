@@ -39,11 +39,20 @@ class _Section(BaseModel):
 class VideoConfig(_Section):
     width: int = 1080
     height: int = 1920
+    crf: int = 20  # x264 quality (Task 08)
+    preset: str = "veryfast"  # x264 speed/size trade-off (Task 08)
 
 
 class AvatarConfig(_Section):
     image: Path
     height_ratio: float = 0.55
+    # SadTalker options (Task 08)
+    size: Literal[256, 512] = 256
+    enhancer: Literal["none", "gfpgan"] = "none"
+    pose_style: int = 0
+    expression_scale: float = 1.0
+    preprocess: Literal["crop", "extcrop", "resize", "full", "extfull"] = "full"
+    still: bool = True
 
 
 class BackgroundConfig(_Section):
@@ -51,17 +60,42 @@ class BackgroundConfig(_Section):
     loop: Path
 
 
+class CaptionsConfig(_Section):
+    enabled: bool = False  # burned-in captions (optional stretch in Task 08)
+
+
 class TTSConfig(_Section):
     # ``device`` auto/mps handling arrives in Task 08; today only "cuda" enables the GPU.
     voice: str = "Ana Florence"
     language: str = "en"
     device: Literal["auto", "cpu", "cuda", "mps"] = "auto"
+    speaker_wav: Path | None = None  # reference clip for voice cloning instead of ``voice`` (Task 08)
 
 
 class LLMConfig(_Section):
-    # Consumed by LLMClient in Task 07 (currently the client hard-codes its own URL/model).
+    """Any OpenAI-compatible chat-completions endpoint; ``models`` are tried in order (Task 07)."""
+
     base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     models: list[str]
+    max_retries: int = 3
+    timeout_seconds: float = 120.0
+
+
+class ScriptConfig(_Section):
+    target_seconds: int = 18  # narration length; ~2.5 words per second (Task 07)
+    tone: str = "factual, concise, engaging"
+
+
+class ResearchConfig(_Section):
+    """Research sources are optional and fail soft (Task 06)."""
+
+    collectors: list[Literal["rss", "web_search", "reddit"]] = ["rss", "web_search", "reddit"]
+    search_provider: Literal["duckduckgo", "google_cse", "static"] = "duckduckgo"
+    timeout_seconds: float = 10.0
+    cache_dir: Path = Path(".cache/research")
+    cache_ttl_hours: float = 24.0
+    fixtures_dir: Path = Path("fixtures/research")  # offline mode reads canned snippets from here
+    max_snippet_chars: int = 6000  # prompt budget across all snippets
 
 
 class PathsConfig(_Section):
@@ -73,11 +107,15 @@ class PathsConfig(_Section):
 
 class Config(_Section):
     root: Path
+    offline: bool = False  # use fixtures and fake LLM/TTS/avatar: no network, keys or GPU needed
     video: VideoConfig = VideoConfig()
     avatar: AvatarConfig
     background: BackgroundConfig
+    captions: CaptionsConfig = CaptionsConfig()
     tts: TTSConfig = TTSConfig()
     llm: LLMConfig
+    script: ScriptConfig = ScriptConfig()
+    research: ResearchConfig = ResearchConfig()
     paths: PathsConfig = PathsConfig()
 
     def resolve(self, path: Path | str) -> Path:

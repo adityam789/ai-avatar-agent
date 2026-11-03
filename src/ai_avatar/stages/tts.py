@@ -6,7 +6,7 @@ XTTS v2 weights are under the Coqui Public Model License (non-commercial use).
 from functools import lru_cache
 from pathlib import Path
 
-from ai_avatar.config import TTSConfig
+from ai_avatar.config import Config
 
 
 @lru_cache(maxsize=1)
@@ -17,13 +17,13 @@ def _get_tts(use_gpu: bool):
     return TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=use_gpu)
 
 
-def generate_audio(script: str, output_path: Path, cfg: TTSConfig) -> Path:
+def generate_audio(script: str, output_path: Path, cfg: Config) -> Path:
     """Synthesize ``script`` to ``output_path`` (wav) and return that path."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    _get_tts(cfg.device == "cuda").tts_to_file(
+    _get_tts(cfg.tts.device == "cuda").tts_to_file(
         text=script,
         file_path=str(output_path),
-        speaker=cfg.voice,
-        language=cfg.language,
+        speaker=cfg.tts.voice,
+        language=cfg.tts.language,
     )
     return output_path

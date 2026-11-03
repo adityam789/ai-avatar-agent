@@ -3,15 +3,12 @@
 import subprocess
 from pathlib import Path
 
-def compose(
-    avatar_video: Path,
-    loop_video: Path,
-    output_path: Path,
-    avatar_ratio=0.55,
-    width=1080,
-    height=1920
-):
-    """Write a ``width`` x ``height`` video: avatar on top, looping ``loop_video`` below."""
+from ai_avatar.config import Config
+
+
+def compose(avatar_video: Path, loop_video: Path, output_path: Path, cfg: Config) -> None:
+    """Write a ``cfg.video`` sized video: avatar on top, looping ``loop_video`` below."""
+    avatar_ratio, width, height = cfg.avatar.height_ratio, cfg.video.width, cfg.video.height
     avatar_h = int(height * avatar_ratio)
     loop_h = height - avatar_h
 
