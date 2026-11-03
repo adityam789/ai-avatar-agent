@@ -271,3 +271,10 @@ def test_drafts_are_compared_by_their_trimmed_length(cfg):
     llm = ScriptedLLM(sentence_words(5), sentence_words(100))
     script = generate_script("t", ["f"], cfg, llm)
     assert len(script.split()) == 56  # the long retry, hard-cut to the budget, beats the 5-word draft
+
+
+def test_equally_close_drafts_keep_the_first(cfg):
+    # first: 60 words, trimmed to 56 (11 from the 45-word target); retry: 34 words (also 11 away)
+    llm = ScriptedLLM(sentence_words(60, "a"), sentence_words(34, "b"))
+    script = generate_script("t", ["f"], cfg, llm)
+    assert script.startswith("a0") and len(script.split()) == 56
