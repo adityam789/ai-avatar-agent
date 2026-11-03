@@ -1,5 +1,6 @@
-"""Back-compat shim: ``python run.py`` == ``python -m ai_avatar``."""
-from ai_avatar.__main__ import main
+"""Back-compat shim: ``python run.py ...`` == ``ai-avatar ...``."""
+
+from ai_avatar.cli import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -402,12 +402,12 @@ def test_override_that_the_selected_stage_would_overwrite_is_rejected(cfg, fake_
         run("t", cfg, audio=wav, only_stage="tts", stages=fake_stages)
 
 
-def test_run_json_written_even_when_first_stage_cannot_start(cfg, fake_stages):
+def test_impossible_plan_fails_before_touching_anything(cfg, fake_stages):
     run_dir = cfg.outputs_dir / "fresh"
     run_dir.mkdir(parents=True)
-    with pytest.raises(PipelineError):
+    with pytest.raises(PipelineError, match="needs script.txt"):
         run("t", cfg, resume=run_dir, from_stage="tts", stages=fake_stages)
-    assert json.loads((run_dir / "run.json").read_text())["topic"] == "t"
+    assert list(run_dir.iterdir()) == []  # no run.json, no copied overrides, nothing deleted
 
 
 def test_override_must_target_the_stage_it_feeds(cfg, fake_stages, tmp_path):
@@ -451,3 +451,88 @@ def test_logging_filter_scrubs_urls(capsys):
     err = capsys.readouterr().err
     assert "SECRETVALUE99" not in err and "key=***" in err
     logging.getLogger().handlers.clear()
+
+
+@pytest.mark.parametrize(
+    "kwargs, existing",
+    [
+        ({}, []),
+        ({}, ["research.json"]),
+        ({}, ["research.json", "script.txt", "audio.wav"]),
+        ({}, ["avatar.mp4"]),
+        ({}, ["research.json", "script.txt", "audio.wav", "avatar.mp4", "final.mp4"]),
+        ({"from_stage": "script"}, ["research.json", "script.txt", "audio.wav", "avatar.mp4", "final.mp4"]),
+        ({"only_stage": "tts"}, ["script.txt"]),
+        ({"only_stage": "compose"}, ["avatar.mp4"]),
+        ({"script_file": "S"}, []),
+        ({"script_file": "S"}, ["research.json", "script.txt", "audio.wav", "avatar.mp4", "final.mp4"]),
+        ({"audio": "A"}, ["research.json", "script.txt"]),
+        ({"audio": "A", "script_file": "S"}, []),
+        ({"audio": "A", "from_stage": "avatar"}, ["audio.wav", "avatar.mp4", "final.mp4"]),
+    ],
+)
+def test_planned_stages_matches_what_run_actually_does(cfg, fake_stages, calls, tmp_path, kwargs, existing):
+    """The dry-run planner must agree with run() or the dry-run would lie."""
+    from ai_avatar.pipeline import planned_stages
+
+    src = {"A": tmp_path / "a.wav", "S": tmp_path / "s.txt"}
+    for p in src.values():
+        p.write_text("x")
+    kwargs = {k: src[v] if v in src else v for k, v in kwargs.items()}
+    run_dir = cfg.outputs_dir / "r"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run.json").write_text(json.dumps({"topic": "t"}))
+    for name in existing:
+        (run_dir / name).write_text("x")
+
+    expected = planned_stages(fake_stages, run_dir=run_dir, **kwargs)
+    run("t", cfg, resume=run_dir, stages=fake_stages, **kwargs)
+    assert calls == expected
+
+
+def test_validate_options_has_no_side_effects(cfg, fake_stages, tmp_path):
+    from ai_avatar.pipeline import validate_options
+
+    validate_options(fake_stages, resume=None, from_stage="tts", audio=None, script_file=None)
+    with pytest.raises(PipelineError, match="does not exist"):
+        validate_options(fake_stages, resume=tmp_path / "nope")
+
+
+@pytest.mark.parametrize(
+    "kwargs, existing, error",
+    [
+        ({"from_stage": "tts"}, ["research.json"], "needs script.txt"),
+        ({"only_stage": "avatar"}, ["script.txt"], "needs audio.wav"),
+        ({"only_stage": "compose"}, [], "needs avatar.mp4"),
+    ],
+)
+def test_planner_rejects_stages_whose_input_will_be_missing(cfg, fake_stages, kwargs, existing, error):
+    from ai_avatar.pipeline import planned_stages
+
+    run_dir = cfg.outputs_dir / "r"
+    run_dir.mkdir(parents=True)
+    for name in existing:
+        (run_dir / name).write_text("x")
+    with pytest.raises(PipelineError, match=error):
+        planned_stages(fake_stages, run_dir=run_dir, **kwargs)
+    with pytest.raises(PipelineError, match=error):  # and run() agrees, before changing anything
+        run("t", cfg, resume=run_dir, stages=fake_stages, **kwargs)
+    assert {p.name for p in run_dir.iterdir()} == set(existing)
+
+
+def test_planner_checks_topic_and_run_json_like_run(cfg, fake_stages):
+    from ai_avatar.pipeline import planned_stages
+
+    run_dir = run("original", cfg, stages=fake_stages).parent
+    with pytest.raises(PipelineError, match="original"):
+        planned_stages(fake_stages, topic="other", run_dir=run_dir)
+    (run_dir / "run.json").write_text("{bad")
+    with pytest.raises(PipelineError, match="corrupt"):
+        planned_stages(fake_stages, topic="original", run_dir=run_dir)
+
+
+def test_override_that_is_the_run_dirs_own_file_plans_nothing(cfg, fake_stages):
+    from ai_avatar.pipeline import planned_stages
+
+    run_dir = run("t", cfg, stages=fake_stages).parent
+    assert planned_stages(fake_stages, run_dir=run_dir, audio=run_dir / "audio.wav") == []

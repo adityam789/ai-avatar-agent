@@ -189,6 +189,106 @@ def _make_run_dir(base: Path, stamp: str, slug: str) -> Path:
     raise PipelineError(f"Could not create a unique run directory under {base}")
 
 
+def _override_artifacts(audio: Path | None, script_file: Path | None) -> list[tuple[Path, str]]:
+    """Overrides in the order they are applied (later ones invalidate what follows them)."""
+    return [(src, art) for src, art in ((script_file, "script.txt"), (audio, "audio.wav")) if src is not None]
+
+
+def validate_options(
+    stages: tuple[Stage, ...],
+    *,
+    resume: Path | None = None,
+    from_stage: str | None = None,
+    only_stage: str | None = None,
+    audio: Path | None = None,
+    script_file: Path | None = None,
+) -> None:
+    """Raise :class:`PipelineError` for option combinations ``run`` would reject. Touches nothing."""
+    if from_stage and only_stage:
+        raise PipelineError("Use either from_stage or only_stage, not both.")
+    first = _stage_index(stages, from_stage) if from_stage else None
+    only = _stage_index(stages, only_stage) if only_stage else None
+    overrides = _override_artifacts(audio, script_file)
+    for source, _ in overrides:
+        if not Path(source).is_file():
+            raise PipelineError(f"Override file not found: {source}")
+    selected = first if first is not None else only
+    if selected is not None and overrides:
+        last_override = max(next(i for i, st in enumerate(stages) if st.artifact == art) for _, art in overrides)
+        if selected != last_override + 1:
+            want = stages[last_override + 1].name if last_override + 1 < len(stages) else "(none)"
+            raise PipelineError(
+                f"--audio/--script-file feed the {want!r} stage, so they can only be combined with "
+                f"from_stage/only_stage={want!r}, not {stages[selected].name!r}."
+            )
+    if resume and not Path(resume).is_dir():
+        raise PipelineError(f"--resume directory does not exist: {Path(resume).resolve()}")
+
+
+def _missing_input_error(stage: Stage, run_dir: Path | str) -> PipelineError:
+    return PipelineError(
+        f"Stage {stage.name!r} needs {stage.requires} in {run_dir}. "
+        "Run the earlier stages first or pass the matching override (--audio / --script-file)."
+    )
+
+
+def planned_stages(
+    stages: tuple[Stage, ...],
+    *,
+    topic: str | None = None,
+    run_dir: Path | None = None,
+    from_stage: str | None = None,
+    only_stage: str | None = None,
+    audio: Path | None = None,
+    script_file: Path | None = None,
+) -> list[str]:
+    """The single planner: names of the stages :func:`run` will execute, or a :class:`PipelineError`.
+
+    Validates the options, the resume directory (exists, ``run.json`` readable, same topic) and that every
+    planned stage will find its input. Touches nothing, so ``run`` calls it before creating or copying
+    anything and ``--dry-run`` reports exactly what a real run would do.
+    """
+    validate_options(
+        stages, resume=run_dir, from_stage=from_stage, only_stage=only_stage, audio=audio, script_file=script_file
+    )
+    if run_dir is not None:
+        recorded = _read_run_json(Path(run_dir)).get("topic")
+        if topic is not None and recorded not in (None, topic):
+            raise PipelineError(
+                f"{Path(run_dir).name} was created for topic {recorded!r}, not {topic!r}. "
+                "Resume with the original topic or start a new run."
+            )
+    names_on_disk = {st.artifact for st in stages} | {st.requires for st in stages if st.requires}
+    have = {a for a in names_on_disk if run_dir is not None and (Path(run_dir) / a).is_file()}
+    for source, artifact in _override_artifacts(audio, script_file):
+        target = Path(run_dir) / artifact if run_dir is not None else None
+        if target is not None and target.exists() and Path(source).samefile(target):
+            continue  # already the run dir's own file: nothing is copied, nothing invalidated
+        have.add(artifact)
+        k = next(i for i, st in enumerate(stages) if st.artifact == artifact)
+        have -= {st.artifact for st in stages[k + 1 :]}
+    first = _stage_index(stages, from_stage) if from_stage else None
+    only = _stage_index(stages, only_stage) if only_stage else None
+    names = []
+    available = set(have)
+    for i, st in enumerate(stages):
+        if only is not None:
+            run_it = i == only
+        elif first is not None:
+            run_it = i >= first
+        else:
+            run_it = not any(s.artifact in have for s in stages[i:])
+        if not run_it:
+            continue
+        if st.requires and st.requires not in available:
+            raise _missing_input_error(st, run_dir if run_dir is not None else "the new run directory")
+        names.append(st.name)
+        available.add(st.artifact)
+        if only is None:  # running a stage discards everything derived from the old version
+            available -= {s.artifact for s in stages[i + 1 :]}
+    return names
+
+
 # --- public API ---
 
 
@@ -215,35 +315,22 @@ def run(
     is rejected. Re-running a stage deletes its old artifact and all later ones first.
     """
     cfg = cfg or load_config()
-    if from_stage and only_stage:
-        raise PipelineError("Use either from_stage or only_stage, not both.")
+    planned_stages(
+        stages,
+        topic=topic,
+        run_dir=Path(resume) if resume else None,
+        from_stage=from_stage,
+        only_stage=only_stage,
+        audio=audio,
+        script_file=script_file,
+    )
     first = _stage_index(stages, from_stage) if from_stage else None
     only = _stage_index(stages, only_stage) if only_stage else None
-    overrides = [(script_file, "script.txt"), (audio, "audio.wav")]
-    for source, artifact in overrides:
-        if source is None:
-            continue
-        if not Path(source).is_file():
-            raise PipelineError(f"Override file not found: {source}")
-    selected = first if first is not None else only
-    override_indexes = [next(i for i, st in enumerate(stages) if st.artifact == a) for src, a in overrides if src is not None]
-    if selected is not None and override_indexes and selected != max(override_indexes) + 1:
-        want = stages[max(override_indexes) + 1].name if max(override_indexes) + 1 < len(stages) else "(none)"
-        raise PipelineError(
-            f"--audio/--script-file feed the {want!r} stage, so they can only be combined with "
-            f"from_stage/only_stage={want!r}, not {stages[selected].name!r}."
-        )
+    overrides = _override_artifacts(audio, script_file)
 
     if resume:
         run_dir = Path(resume).resolve()
-        if not run_dir.is_dir():
-            raise PipelineError(f"--resume directory does not exist: {run_dir}")
         previous = _read_run_json(run_dir)
-        if previous.get("topic") not in (None, topic):
-            raise PipelineError(
-                f"{run_dir.name} was created for topic {previous['topic']!r}, not {topic!r}. "
-                "Resume with the original topic or start a new run."
-            )
     else:
         previous = {}
         run_dir = _make_run_dir(cfg.outputs_dir, datetime.now().strftime("%Y%m%d-%H%M%S"), slugify(topic))
@@ -307,10 +394,7 @@ def run(
             log.info("[%s] skipped", stage.name)
             continue
         if stage.requires and not ctx.path(stage.requires).is_file():
-            raise PipelineError(
-                f"Stage {stage.name!r} needs {stage.requires} in {run_dir}. "
-                "Run the earlier stages first or pass the matching override (--audio / --script-file)."
-            )
+            raise _missing_input_error(stage, run_dir)
         log.info("[%s] running%s", stage.name, " (forced)" if forced else "")
         # Re-running a stage makes its old output and everything derived from it stale.
         artifact.unlink(missing_ok=True)
@@ -347,13 +431,18 @@ def dry_run(
     topic: str,
     cfg: Config | None = None,
     stages: tuple[Stage, ...] = DEFAULT_STAGES,
+    will_run: list[str] | None = None,
 ) -> tuple[list[str], list[Check]]:
     """Validate the setup without running anything.
 
-    Returns ``(plan, checks)``: the stages/artifacts that would run, and environment checks
-    (``Check.required`` ones must pass for a real run). Env var *names* only, never values.
+    Returns ``(plan, checks)``: the stages/artifacts that would run (``will_run`` limits them; the
+    rest are listed as skipped), and environment checks (``Check.required`` ones must pass for a
+    real run). Env var *names* only, never values.
     """
     cfg = cfg or load_config()
-    plan = [f"{s.name}: -> {s.artifact}" for s in stages]
+    plan = [
+        f"{s.name}: -> {s.artifact}" if will_run is None or s.name in will_run else f"{s.name}: skipped"
+        for s in stages
+    ]
     plan.insert(0, f"run dir: {cfg.outputs_dir}/<timestamp>-{slugify(topic)}/")
     return plan, check_environment(cfg)
