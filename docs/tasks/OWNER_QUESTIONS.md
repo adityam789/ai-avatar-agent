@@ -4,12 +4,12 @@ Decisions and actions only Aditya can take. Each item notes the default chosen s
 
 ## Manual actions
 - [x] **Task 01** — Rotated the Reddit app secret and other keys (confirmed by owner 2026-11-03).
-- [ ] **Task 01** — History rewrite to purge the old Reddit secret from commit `17602a7`: **not run** (rotation makes it low value).
+- [x] **Task 01** — History rewrite to purge the old Reddit secret from commit `17602a7`: **not run; owner decided it is not needed** (2026-11-03).
   Exact `git filter-repo` commands are in `01-security-hygiene.md`. Only do it if you accept breaking existing clones/forks.
 - [ ] **Task 11** — Review `assets/loops/china_surfer_low.mp4` (18 MB, unknown provenance) and the SadTalker sample avatar
   (`full_body_1.png`, third-party demo image). Defaults proposed in Task 11: replace both with generated placeholders in the repo.
-- [ ] **Task 10/11** — Choose a licence (MIT recommended) — `LICENSE` is created only after you confirm.
-- [ ] **Final** — Push, tag and set GitHub description/topics yourself (commands are printed at the end of the run; never run by the agent).
+- [x] **Task 10/11** — Licence: owner delegated the choice → **MIT**, `LICENSE` added.
+- [x] **Final** — Owner asked for the branch to be pushed (2026-11-03). Tagging and GitHub metadata remain with the owner.
 
 ## Decisions (answered)
 - **Task 02** — `[tts]` and `[avatar]` extras cannot co-install under SadTalker's exact pins → **decided: two separate venvs**
@@ -22,5 +22,4 @@ Decisions and actions only Aditya can take. Each item notes the default chosen s
 - **Task 08** — Captions were skipped (the pipeline does not pass the script text to `compose()`); listed as a roadmap item.
 
 ## Still open
-- **Task 07** — Should the CLI warn when `llm.models` contains only a single `:free` model (they rotate/throttle without notice)?
-  Default: no warning; the README explains it.
+None. (Warning on a single `:free` model and the CI-badge repo URL were dismissed by the owner.)

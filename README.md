@@ -169,7 +169,7 @@ assets/                    generated placeholder avatar + background loop
 
 ## Licensing and responsible use
 
-* **This project's code:** no licence has been chosen yet (an MIT licence is proposed — see `docs/tasks/OWNER_QUESTIONS.md`); until a `LICENSE` file is added, all rights are reserved by the author.
+* **This project's code:** MIT (see `LICENSE`). Third-party components below keep their own terms.
 * **SadTalker** (git submodule): code is Apache-2.0; its pretrained weights and bundled third-party components (e.g. BFM, face-alignment models, GFPGAN) carry their own terms — read them before redistributing or commercial use.
 * **Coqui XTTS v2** weights: Coqui Public Model License — **non-commercial** use only.
 * **OpenRouter models** have their own terms; check each model's licence and data policy.
