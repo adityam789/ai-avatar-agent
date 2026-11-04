@@ -10,7 +10,7 @@ video:
   preset: veryfast
 
 avatar:
-  image: models/sad_talker/examples/source_image/full_body_1.png
+  image: assets/avatars/placeholder.png   # generated placeholder; use a face you have rights to
   height_ratio: 0.55   # share of the frame height used by the talking head
   size: 256            # SadTalker face-render size: 256 | 512
   enhancer: none       # none | gfpgan
@@ -21,7 +21,7 @@ avatar:
 
 background:
   enabled: true
-  loop: assets/loops/china_surfer_low.mp4
+  loop: assets/loops/placeholder_loop.mp4
 
 captions:
   enabled: false

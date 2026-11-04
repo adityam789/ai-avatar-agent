@@ -22,3 +22,14 @@ Tracked today: `output.wav` (305 KB, repo root), `assets/loops/china_surfer_low.
 
 ## Open questions
 - Keep/replace the loop video and sample avatar? Choose license (MIT?).
+
+## Results (2026-11-03)
+- Tracked size (excluding the submodule gitlink): **1.4 MB** (was 19 MB). No generated outputs tracked (`outputs/`, `*.wav`, `*.mp4` ignored; `docs/assets/` and the placeholder loop are explicit exceptions).
+- `output.wav` and `assets/loops/china_surfer_low.mp4` were **untracked with `git rm --cached` — the files are still on disk** (nothing deleted). The 18 MB clip remains in git *history*
+  (shrinking history needs a rewrite — owner decision, not done). Its provenance is unknown, so the repo no longer ships it; point to it locally with `--loop` or `background.loop`.
+- Defaults now use generated placeholders: `assets/avatars/placeholder.png` (drawn with ffmpeg) and `assets/loops/placeholder_loop.mp4` (6 s gradient, 24 KB). The SadTalker sample image
+  (`full_body_1.png`, third-party) is no longer a default. A real run needs a real face image (`--avatar-image`); the placeholder is only enough for the offline fakes.
+- `.gitattributes` (LF, binaries), `CHANGELOG.md`, version `0.1.0` (already in `pyproject.toml`), ruff pinned to 0.8.6 in `[dev]` to match pre-commit.
+- Submodule: `.gitmodules` -> `https://github.com/adityam789/SadTalker.git`; the pinned commit `398f403` ("Modified inference.py for ai-avatar-agent compatibility") is on the fork's `origin/main`
+  (local remote-tracking ref), so a fresh `--recurse-submodules` clone can fetch it. Fork divergence is documented in `docs/KNOWN_ISSUES.md`.
+- Owner commands (NOT run): see the final report / `docs/tasks/OWNER_QUESTIONS.md`.
