@@ -8,7 +8,7 @@ They are **not** upgraded blindly. An upgrade would need: re-testing SadTalker o
 and a patch for numpy >= 1.24, which removed the `np.float` / `np.int` aliases still used in
 `models/sad_talker/src/face3d/util/my_awing_arch.py` and `.../arcface_torch/eval_ijbc.py` (a change inside the submodule,
 which this effort does not make). The face-alignment/GFPGAN stack would also need re-checking.
-Python 3.10 is the supported interpreter (pinned by `.python-version`; CI will use it, Task 09).
+Python 3.10 is the supported interpreter (pinned by `.python-version`; the CI matrix runs 3.10 and 3.11).
 
 ## `[tts]` and `[avatar]` extras cannot be installed into one environment (verified 2026-11-03)
 `pip install --dry-run -e ".[tts]"` and `-e ".[avatar]"` each resolve on their own (Python 3.10, macOS arm64), but
@@ -36,3 +36,29 @@ Options (owner decision, see `docs/tasks/OWNER_QUESTIONS.md`):
 ## Licences
 - XTTS v2 weights: Coqui Public Model License (non-commercial).
 - SadTalker code is Apache-2.0; pretrained weights and third-party components have their own terms.
+
+## SadTalker quirks (submodule `models/sad_talker`, fork `adityam789/SadTalker`)
+The fork's only divergence from upstream is a programmatic `run(...)` entry point in `inference.py` (kwargs mirror the CLI flags). The project never
+edits the submodule; `stages/avatar.py` works around the following instead:
+* `inference.run` returns `None` and writes `<result_dir>/<YYYY_mm_dd_HH.MM.SS>.mp4`; the wrapper finds the output by listing the (per-run) result dir before/after.
+* The model config dir is derived from `sys.argv[0]` (`<dirname>/models/sad_talker/src/config`), i.e. it depends on how the program was launched; the wrapper points `argv[0]` at the project root for the call.
+* The repo's own top-level `src/` directory would shadow SadTalker's `src` package; the wrapper puts the submodule directory first on `sys.path`.
+* No MPS support (cuda or cpu only), so Apple-silicon machines render on CPU (slow).
+* If no face is detected it writes no file and raises no error; the wrapper turns that into an `AvatarError`.
+* The GFPGAN enhancer reads weights from `./gfpgan/weights` relative to the CWD (and downloads silently if missing); the wrapper can `chdir` for it.
+* Pretrained weights are not in the repo (`models/sad_talker/scripts/download_models.sh`) and carry their own licences.
+* Sample images under `models/sad_talker/examples/` are third-party demo images; the repo's defaults use a generated placeholder instead.
+
+## Two environments for a real run
+`coqui-tts` and SadTalker's pinned stack cannot share one environment (see above). The run directory is the hand-over: run the first stages in a TTS environment (it ends with
+an expected error at the avatar stage), then `--resume` the same directory from a SadTalker environment. This workflow is mocked-tested but was not re-run on real models in this cleanup.
+
+## Performance notes
+* XTTS v2 on CPU takes roughly real-time or slower per clip; on Apple MPS it is unreliable, so `tts.device: auto` runs it on CPU there (with a warning).
+* SadTalker on CPU takes minutes per clip at `size: 256`; `size: 512` and `enhancer: gfpgan` are much slower.
+* The first real run downloads the XTTS model (~2 GB) and needs `COQUI_TOS_AGREED=1` (or one interactive run) to accept the Coqui licence.
+
+## Other
+* **Collector timeouts** are wall-clock limits implemented with daemon threads: a hung third-party call is abandoned, not killed, and keeps running until it returns.
+* **JSON salvage** for chatty LLM replies repairs trailing commas with a regex; a damaged reply containing `, ]` inside a string could be altered. Pathological input with tens of thousands of `{` is O(n²).
+* **Captions** are not implemented (the compose stage does not receive the script text).

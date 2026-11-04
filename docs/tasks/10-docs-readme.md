@@ -26,3 +26,12 @@ A README that sells the project to a recruiter in 60 seconds and lets an enginee
 ## Acceptance criteria
 - A reader who has never seen the repo can run the offline demo from README commands alone (verify by following them literally).
 - All README links/paths resolve.
+
+## Results (2026-11-03)
+- `README.md` (badges, demo, honest status, mermaid pipeline, quickstart, real-run flow with two venvs, flags and config tables, layout, trade-offs, limitations, licensing/responsible use),
+  `docs/architecture.md` (component + data-flow diagrams, run dir, resume rules, error model, offline mode, extension points), `docs/KNOWN_ISSUES.md` (pins, tts/avatar clash,
+  SadTalker quirks + fork divergence, perf, services, licences), `docs/RESUME_BULLETS.md` (7 bullets, talk track, retrospective), `CONTRIBUTING.md`.
+- Verified: all relative links in the markdown files resolve (script); README commands are followed literally by the final-gate verifier (see Task 11 / PROGRESS).
+- **LICENSE not created**: waiting for the owner's choice (MIT proposed). The README says so.
+- CI badge URL assumes the GitHub repo `adityam789/ai-avatar-agent` — change it if the repo is named differently.
+- Not verified: the two-virtualenv real-run instructions on real hardware.
