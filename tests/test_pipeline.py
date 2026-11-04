@@ -9,8 +9,8 @@ import pytest
 from ai_avatar.checks import Check
 from ai_avatar.config import load_config
 from ai_avatar.errors import AvatarError, PipelineError, ResearchError, TTSError
-from ai_avatar.research.schemas import ResearchBundle
 from ai_avatar.pipeline import DEFAULT_STAGES, Stage, config_hash, dry_run, run, slugify
+from ai_avatar.research.schemas import ResearchBundle
 
 
 @pytest.fixture
@@ -36,7 +36,12 @@ def fake_stages(calls):
 
     base = {s.name: s for s in DEFAULT_STAGES}
     return (
-        make("research", "research.json", base["research"].error, write=lambda c: json.dumps({"topic": c.topic, "facts": ["f"]})),
+        make(
+            "research",
+            "research.json",
+            base["research"].error,
+            write=lambda c: json.dumps({"topic": c.topic, "facts": ["f"]}),
+        ),
         make("script", "script.txt", base["script"].error, "research.json", write=lambda c: f"script about {c.topic}"),
         make("tts", "audio.wav", TTSError, "script.txt"),
         make("avatar", "avatar.mp4", AvatarError, "audio.wav"),
@@ -53,7 +58,12 @@ def test_full_run_creates_run_dir_and_run_json(cfg, fake_stages, calls):
     assert run_dir.parent == cfg.outputs_dir
     assert run_dir.name.endswith("-openai-gpt-5")
     assert {p.name for p in run_dir.iterdir()} == {
-        "research.json", "script.txt", "audio.wav", "avatar.mp4", "final.mp4", "run.json",
+        "research.json",
+        "script.txt",
+        "audio.wav",
+        "avatar.mp4",
+        "final.mp4",
+        "run.json",
     }
     record = json.loads((run_dir / "run.json").read_text())
     assert record["topic"] == "OpenAI GPT-5!"
@@ -76,8 +86,16 @@ def test_run_json_has_only_expected_keys_and_no_env_values(cfg, fake_stages, mon
     text = (final.parent / "run.json").read_text()
     assert "sk-super-secret-value" not in text
     assert set(json.loads(text)) == {
-        "topic", "run_id", "started_at", "last_invoked_at", "ai_avatar_version", "python",
-        "versions", "config_hash", "models", "stages",
+        "topic",
+        "run_id",
+        "started_at",
+        "last_invoked_at",
+        "ai_avatar_version",
+        "python",
+        "versions",
+        "config_hash",
+        "models",
+        "stages",
     }
 
 
@@ -103,7 +121,9 @@ def test_resume_complete_run_does_nothing(cfg, fake_stages, calls):
 
 
 def test_resume_after_failure_retries_only_failed_stage(cfg, fake_stages, calls):
-    boom = Stage("avatar", "avatar.mp4", lambda ctx: (_ for _ in ()).throw(ValueError("gpu on fire")), AvatarError, "audio.wav")
+    boom = Stage(
+        "avatar", "avatar.mp4", lambda ctx: (_ for _ in ()).throw(ValueError("gpu on fire")), AvatarError, "audio.wav"
+    )
     broken = fake_stages[:3] + (boom, fake_stages[4])
     with pytest.raises(AvatarError, match="avatar stage failed: gpu on fire"):
         run("t", cfg, stages=broken)
@@ -182,7 +202,9 @@ def test_bad_arguments(cfg, fake_stages, tmp_path):
 
 def test_no_background_copies_avatar_to_final(tmp_path):
     """The real compose adapter copies (not renames) the avatar when background is disabled."""
-    cfg = load_config(environ={"AI_AVATAR__background__enabled": "false", "AI_AVATAR__paths__outputs_dir": str(tmp_path)})
+    cfg = load_config(
+        environ={"AI_AVATAR__background__enabled": "false", "AI_AVATAR__paths__outputs_dir": str(tmp_path)}
+    )
     compose_stage = next(s for s in DEFAULT_STAGES if s.name == "compose")
     run_dir = tmp_path / "r"
     run_dir.mkdir()
@@ -212,7 +234,9 @@ def test_slugify():
 
 def test_failed_forced_rerun_leaves_no_stale_downstream_artifacts(cfg, fake_stages, calls):
     run_dir = run("t", cfg, stages=fake_stages).parent
-    fail_tts = Stage("tts", "audio.wav", lambda ctx: (ctx.path("audio.wav").write_text("half"), 1 / 0), TTSError, "script.txt")
+    fail_tts = Stage(
+        "tts", "audio.wav", lambda ctx: (ctx.path("audio.wav").write_text("half"), 1 / 0), TTSError, "script.txt"
+    )
     broken = fake_stages[:2] + (fail_tts,) + fake_stages[3:]
     with pytest.raises(TTSError):
         run("t", cfg, resume=run_dir, from_stage="script", stages=broken)
@@ -289,7 +313,9 @@ def test_missing_optional_dependency_gets_an_install_hint(cfg, fake_stages):
     def needs_tts(ctx):
         import definitely_not_installed_tts_pkg  # noqa: F401
 
-    stages = fake_stages[:2] + (Stage("tts", "audio.wav", needs_tts, TTSError, "script.txt", extra="tts"),) + fake_stages[3:]
+    stages = (
+        fake_stages[:2] + (Stage("tts", "audio.wav", needs_tts, TTSError, "script.txt", extra="tts"),) + fake_stages[3:]
+    )
     with pytest.raises(TTSError, match=r"pip install -e '\.\[tts\]'"):
         run("t", cfg, stages=stages)
 
@@ -341,7 +367,13 @@ def test_real_adapters_wire_tts_avatar_compose_paths(cfg, monkeypatch):
         return video
 
     def fake_compose(avatar_video, loop_video, output_path, config):
-        calls["compose"] = (avatar_video.name, loop_video.name, config.avatar.height_ratio, config.video.width, config.video.height)
+        calls["compose"] = (
+            avatar_video.name,
+            loop_video.name,
+            config.avatar.height_ratio,
+            config.video.width,
+            config.video.height,
+        )
         output_path.write_text("final")
 
     monkeypatch.setattr("ai_avatar.stages.tts.generate_audio", fake_tts)
@@ -478,7 +510,7 @@ def test_planned_stages_matches_what_run_actually_does(cfg, fake_stages, calls, 
     src = {"A": tmp_path / "a.wav", "S": tmp_path / "s.txt"}
     for p in src.values():
         p.write_text("x")
-    kwargs = {k: src[v] if v in src else v for k, v in kwargs.items()}
+    kwargs = {k: src.get(v, v) for k, v in kwargs.items()}
     run_dir = cfg.outputs_dir / "r"
     run_dir.mkdir(parents=True)
     (run_dir / "run.json").write_text(json.dumps({"topic": "t"}))

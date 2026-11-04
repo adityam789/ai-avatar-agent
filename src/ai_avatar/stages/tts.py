@@ -125,8 +125,10 @@ def generate_audio(script: str, output_path: Path, cfg: Config) -> Path:
     try:
         tts.tts_to_file(text=script, file_path=str(output_path), language=cfg.tts.language, **voice)
     except TTSError:
+        output_path.unlink(missing_ok=True)
         raise
     except Exception as exc:
+        output_path.unlink(missing_ok=True)  # synthesis may have left a partial file
         raise TTSError(f"Speech synthesis failed: {scrub(exc)}") from exc
 
     if not output_path.is_file():

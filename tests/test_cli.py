@@ -86,7 +86,9 @@ def ready_machine(tmp_path, monkeypatch):
     monkeypatch.setattr("shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("importlib.util.find_spec", lambda name, *a: object())
     monkeypatch.setattr(
-        cli, "check_runtime", lambda: [Check("torch", True, "2.1.2 (cpu only)", False), Check("TTS package", True, "installed", False)]
+        cli,
+        "check_runtime",
+        lambda: [Check("torch", True, "2.1.2 (cpu only)", False), Check("TTS package", True, "installed", False)],
     )
 
 
@@ -100,7 +102,11 @@ def test_dry_run_ready(ready_machine, capsys, monkeypatch):
 
 
 def test_dry_run_not_ready_without_torch_or_tts(ready_machine, capsys, monkeypatch):
-    monkeypatch.setattr(cli, "check_runtime", lambda: [Check("torch", False, "not installed", False), Check("TTS package", False, "missing", False)])
+    monkeypatch.setattr(
+        cli,
+        "check_runtime",
+        lambda: [Check("torch", False, "not installed", False), Check("TTS package", False, "missing", False)],
+    )
     assert cli.main(["run", "x", "--dry-run"]) == 1
     assert "Not ready: required checks failed: torch, TTS package" in capsys.readouterr().out
     assert cli.main(["run", "x", "--dry-run", "--offline"]) == 0  # offline needs neither
@@ -134,10 +140,26 @@ def test_run_passes_options_through(monkeypatch, tmp_path, capsys):
         return tmp_path / "final.mp4"
 
     monkeypatch.setattr(cli.pipeline, "run", fake_run)
-    code = cli.main([
-        "run", "black holes", "--no-background", "--device", "cpu", "--offline", "--resume", str(tmp_path),
-        "--from-stage", "tts", "--avatar-image", "me.png", "--loop", "l.mp4", "--seed", "7",
-    ])
+    code = cli.main(
+        [
+            "run",
+            "black holes",
+            "--no-background",
+            "--device",
+            "cpu",
+            "--offline",
+            "--resume",
+            str(tmp_path),
+            "--from-stage",
+            "tts",
+            "--avatar-image",
+            "me.png",
+            "--loop",
+            "l.mp4",
+            "--seed",
+            "7",
+        ]
+    )
     assert code == 0
     assert capsys.readouterr().out.strip() == str(tmp_path / "final.mp4")
     cfg = seen["cfg"]
@@ -238,8 +260,29 @@ def test_audio_script_only_stage_passthrough(monkeypatch, tmp_path):
     seen = {}
     monkeypatch.setattr(cli.pipeline, "run", lambda topic, cfg, **kw: seen.update(kw) or tmp_path / "f.mp4")
     wav, txt = tmp_path / "a.wav", tmp_path / "s.txt"
-    assert cli.main(["run", "x", "--audio", str(wav), "--script-file", str(txt), "--only-stage", "avatar", "--resume", str(tmp_path)]) == 0
-    assert seen["audio"] == wav and seen["script_file"] == txt and seen["only_stage"] == "avatar" and seen["resume"] == tmp_path
+    assert (
+        cli.main(
+            [
+                "run",
+                "x",
+                "--audio",
+                str(wav),
+                "--script-file",
+                str(txt),
+                "--only-stage",
+                "avatar",
+                "--resume",
+                str(tmp_path),
+            ]
+        )
+        == 0
+    )
+    assert (
+        seen["audio"] == wav
+        and seen["script_file"] == txt
+        and seen["only_stage"] == "avatar"
+        and seen["resume"] == tmp_path
+    )
 
 
 def test_cli_paths_are_relative_to_cwd_not_project_root(monkeypatch, tmp_path):
@@ -280,7 +323,9 @@ def test_research_and_script_with_real_pipeline_and_stubbed_functions(monkeypatc
     monkeypatch.setattr(
         "ai_avatar.research.run_research", lambda topic, cfg: ResearchBundle(topic, ["f1", "f2"], "fresh", ["rss"])
     )
-    monkeypatch.setattr("ai_avatar.stages.script.generate_script", lambda topic, facts, cfg: f"{topic}: " + " ".join(facts))
+    monkeypatch.setattr(
+        "ai_avatar.stages.script.generate_script", lambda topic, facts, cfg: f"{topic}: " + " ".join(facts)
+    )
     assert cli.main(["research", "owls"]) == 0
     assert json.loads(capsys.readouterr().out)["facts"] == ["f1", "f2"]
     assert cli.main(["script", "owls"]) == 0

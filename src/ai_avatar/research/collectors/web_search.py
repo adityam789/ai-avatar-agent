@@ -16,6 +16,4 @@ class WebSearchCollector(SourceCollector):
 
     def collect(self, topic: str) -> list[RawSnippet]:
         results = self.provider.search(topic, self.num_results)
-        return [
-            RawSnippet(self.name, r.title, r.text, r.url, {"provider": self.provider.name}) for r in results
-        ]
+        return [RawSnippet(self.name, r.title, r.text, r.url, {"provider": self.provider.name}) for r in results]

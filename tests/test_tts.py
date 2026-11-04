@@ -289,3 +289,21 @@ def test_offline_uses_fake_tts_without_touching_the_model(cfg, tmp_path, monkeyp
 def test_fake_tts_has_a_minimum_length_and_accepts_voice_options(tmp_path):
     FakeTTS().tts_to_file(text="hi", file_path=str(tmp_path / "x.wav"), language="en", speaker_wav="ref.wav")
     assert wav_duration(tmp_path / "x.wav") == pytest.approx(0.5, abs=0.01)
+
+
+def test_partial_file_is_removed_when_synthesis_raises(tmp_path, monkeypatch):
+    from ai_avatar.config import load_config
+    from ai_avatar.errors import TTSError
+    from ai_avatar.stages import tts
+
+    class Crashing:
+        def tts_to_file(self, text, file_path, **kwargs):
+            Path(file_path).write_bytes(b"RIFF-partial")
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(tts, "get_tts", lambda device: Crashing())
+    monkeypatch.setattr(tts, "_accelerators", lambda: (False, False))
+    out = tmp_path / "audio.wav"
+    with pytest.raises(TTSError, match="Speech synthesis failed"):
+        tts.generate_audio("hello there", out, load_config(environ={}))
+    assert not out.exists()

@@ -31,9 +31,7 @@ _STAGE_DIRECTION = re.compile(rf"\(\s*(?:\*|(?:{_STAGE_WORDS})\b)[^)]*\)|\[[^\]]
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 
-def generate_script(
-    topic: str, facts: list[str], cfg: Config, llm_client: Callable[[str], str] | None = None
-) -> str:
+def generate_script(topic: str, facts: list[str], cfg: Config, llm_client: Callable[[str], str] | None = None) -> str:
     """Write a narration of about ``cfg.script.target_seconds`` seconds about ``topic`` from ``facts``.
 
     The reply is cleaned for TTS. If its length is outside the word budget (+-25%), the LLM is asked once

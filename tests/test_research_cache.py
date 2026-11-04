@@ -137,7 +137,7 @@ def test_store_writes_through_a_temp_file_in_the_same_directory(tmp_path, monkey
     real_replace = os.replace
     monkeypatch.setattr(os, "replace", lambda src, dst: (moves.append((Path(src), Path(dst))), real_replace(src, dst)))
     DiskResearchCache(tmp_path, 24, Clock()).store(bundle())
-    (src, dst), = moves
+    ((src, dst),) = moves
     assert src.parent == dst.parent == tmp_path and src != dst and src.suffix == ".tmp"
     assert [p.name for p in tmp_path.iterdir()] == [dst.name]
 

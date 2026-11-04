@@ -73,8 +73,11 @@ class RSSCollector(SourceCollector):
                 content = " ".join(_plain(c.get("value", "")) for c in entry.get("content", []) or [])
                 if not matches_topic(topic, f"{title} {summary} {content}"):
                     continue
-                snippets.append(RawSnippet(self.name, title, summary[:1000], entry.get("link", ""),
-                                           {"published": entry.get("published")}))
+                snippets.append(
+                    RawSnippet(
+                        self.name, title, summary[:1000], entry.get("link", ""), {"published": entry.get("published")}
+                    )
+                )
                 from_feed += 1
                 if from_feed == ENTRIES_PER_FEED:
                     break

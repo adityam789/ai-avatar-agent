@@ -95,9 +95,14 @@ class LLMAggregator:
         response = self.llm(prompt)
         try:
             return FactList.model_validate(extract_json_object(response, want_key="facts")).facts
-        except (ValueError, TypeError, ValidationError, RecursionError) as exc:  # RecursionError: absurdly nested replies
+        except (
+            ValueError,
+            TypeError,
+            ValidationError,
+            RecursionError,
+        ) as exc:  # RecursionError: absurdly nested replies
             raise LLMError(
-                f"the LLM did not return JSON of the form {{\"facts\": [1-8 strings]}} ({type(exc).__name__}). "
+                f'the LLM did not return JSON of the form {{"facts": [1-8 strings]}} ({type(exc).__name__}). '
                 f"Start of reply: {scrub(response)[:200]!r}. Try again or configure a different llm.models entry."
             ) from None
 

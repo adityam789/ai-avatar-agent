@@ -165,12 +165,14 @@ def clean_modules():
 def test_run_sadtalker_imports_from_the_submodule_with_the_context_active(env, clean_modules, tmp_path):
     cfg, *_ = env
     cfg.avatar.enhancer = "gfpgan"
-    (cfg.sadtalker_dir / "inference.py").write_text(textwrap.dedent("""
+    (cfg.sadtalker_dir / "inference.py").write_text(
+        textwrap.dedent("""
         import os, sys
         seen = {}
         def run(**kwargs):
             seen.update(kwargs, argv0=sys.argv[0], cwd=os.getcwd())
-    """))
+    """)
+    )
     cwd, argv0 = os.getcwd(), sys.argv[0]
     avatar_mod._run_sadtalker(cfg, size=256, enhancer="gfpgan")
     seen = sys.modules["models.sad_talker.inference"].seen

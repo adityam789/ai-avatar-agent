@@ -13,6 +13,7 @@ Run layout::
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import importlib.metadata
 import json
@@ -30,7 +31,6 @@ from pathlib import Path
 from ai_avatar import __version__
 from ai_avatar.checks import Check, check_environment
 from ai_avatar.config import Config, load_config
-from ai_avatar.redact import scrub
 from ai_avatar.errors import (
     AiAvatarError,
     AvatarError,
@@ -40,6 +40,7 @@ from ai_avatar.errors import (
     ResearchError,
     TTSError,
 )
+from ai_avatar.redact import scrub
 
 log = logging.getLogger(__name__)
 
@@ -159,10 +160,8 @@ def _read_run_json(run_dir: Path) -> dict:
 def _installed_versions() -> dict[str, str]:
     versions = {}
     for package in ("coqui-tts", "TTS", "torch"):
-        try:
+        with contextlib.suppress(importlib.metadata.PackageNotFoundError):
             versions[package] = importlib.metadata.version(package)
-        except importlib.metadata.PackageNotFoundError:
-            pass
     return versions
 
 
@@ -404,7 +403,11 @@ def run(
         else:
             stale = [st.artifact for st in stages[i + 1 :] if ctx.path(st.artifact).exists()]
             if stale:
-                log.warning("%s are now stale; re-run with --from-stage %s to refresh them.", ", ".join(stale), stages[i + 1].name)
+                log.warning(
+                    "%s are now stale; re-run with --from-stage %s to refresh them.",
+                    ", ".join(stale),
+                    stages[i + 1].name,
+                )
         started = time.perf_counter()
         try:
             stage.fn(ctx)
@@ -441,8 +444,7 @@ def dry_run(
     """
     cfg = cfg or load_config()
     plan = [
-        f"{s.name}: -> {s.artifact}" if will_run is None or s.name in will_run else f"{s.name}: skipped"
-        for s in stages
+        f"{s.name}: -> {s.artifact}" if will_run is None or s.name in will_run else f"{s.name}: skipped" for s in stages
     ]
     plan.insert(0, f"run dir: {cfg.outputs_dir}/<timestamp>-{slugify(topic)}/")
     return plan, check_environment(cfg)

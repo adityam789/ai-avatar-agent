@@ -38,7 +38,7 @@ class StubLLM:
     def __call__(self, prompt):
         self.prompts.append(prompt)
         assert "TASK: extract_facts" in prompt.splitlines()
-        titles = [line[len("Title: "):] for line in prompt.splitlines() if line.startswith("Title: ")]
+        titles = [line[len("Title: ") :] for line in prompt.splitlines() if line.startswith("Title: ")]
         return json.dumps({"facts": titles[:4] or ["canned fact"]})
 
 

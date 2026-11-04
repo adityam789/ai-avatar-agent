@@ -66,7 +66,9 @@ def build_parser() -> argparse.ArgumentParser:
     which.add_argument("--from-stage", choices=STAGE_NAMES, help="re-run this stage and everything after it")
     which.add_argument("--only-stage", choices=STAGE_NAMES, help="re-run just this stage")
     run.add_argument("--audio", type=_path, metavar="WAV", help="use this audio instead of synthesizing speech")
-    run.add_argument("--script-file", type=_path, metavar="TXT", help="use this script instead of researching/writing one")
+    run.add_argument(
+        "--script-file", type=_path, metavar="TXT", help="use this script instead of researching/writing one"
+    )
     run.add_argument("--avatar-image", type=_path, metavar="PNG", help="still image for the talking head")
     run.add_argument("--loop", type=_path, metavar="MP4", help="background loop video")
     run.add_argument("--no-background", action="store_true", help="output the avatar video without the background")
@@ -180,8 +182,14 @@ def _dry_run(args: argparse.Namespace, cfg: Config) -> int:
             c = dataclasses.replace(c, required=bool(needs_files[c.name] & set(will_run)))
         adjusted.append(c)
     notes = [f"resume: {args.resume}"] if args.resume else []
-    notes += [f"{flag}: {value}" for flag, value in (("from stage", args.from_stage), ("only stage", args.only_stage)) if value]
-    notes += [f"{label} override: {path}" for label, path in (("script", args.script_file), ("audio", args.audio)) if path]
+    notes += [
+        f"{flag}: {value}"
+        for flag, value in (("from stage", args.from_stage), ("only stage", args.only_stage))
+        if value
+    ]
+    notes += [
+        f"{label} override: {path}" for label, path in (("script", args.script_file), ("audio", args.audio)) if path
+    ]
     if not cfg.background.enabled:
         notes.append("background: disabled (avatar video is the final output)")
     adjusted += extra

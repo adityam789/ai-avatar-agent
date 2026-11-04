@@ -16,3 +16,18 @@ Green, fast CI that needs no GPU, network, or secrets.
 - `pytest` passes locally in < 30s with no extras installed beyond `[dev]`.
 - CI workflow file present and valid YAML; (owner pushes to see it go green).
 - Coverage ≥ 70% on `src/ai_avatar` excluding stages that require heavy models.
+
+## Results (2026-11-03)
+- Tests: 401 passing in ~8 s with only `.[dev]` installed (no torch/TTS), on Python 3.10 and 3.11 (both run locally). Integration-marked tests
+  are skipped by default (`addopts = -m 'not integration'`); there are currently none left that need credentials.
+- `tests/conftest.py` fails any test that opens a non-loopback socket (subprocess ffmpeg is unaffected).
+- Coverage 97% (branch) on `src/ai_avatar` (`pytest --cov=ai_avatar`); target was >= 70%. Lowest: `__main__.py` (3 lines, covered by a subprocess test),
+  `checks.py` 83% (real-torch branch).
+- Lint/format: `ruff check .` and `ruff format --check .` clean (rules E,F,I,W,UP,B,SIM; line length 120; submodule/gfpgan/outputs excluded).
+  One per-file ignore (W291 in `tests/test_llm_fake.py`: trailing spaces in a prompt fixture are the point of the test).
+- CI: `.github/workflows/ci.yml` (3.10 + 3.11 matrix, installs ffmpeg, ruff check, ruff format --check, pytest --cov). **Not run on GitHub** — the owner
+  pushes to see it go green. YAML validated locally. Optional: `.pre-commit-config.yaml` (ruff, whitespace, detect-secrets) and `Makefile`
+  (`install test lint format doctor demo`).
+- mypy: skipped (optional in the task).
+- Also fixed (from Task 08 review nits): TTS now deletes a partial wav when synthesis raises; stale "(Task NN)" comments removed from `config.py`.
+- README badge is added in Task 10.

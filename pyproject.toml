@@ -52,7 +52,7 @@ avatar = [
 reddit = ["praw"]
 # Default web-search provider for the research stage (DuckDuckGo, no API key).
 search = ["ddgs"]
-dev = ["pytest", "pytest-cov", "ruff"]
+dev = ["pytest", "pytest-cov", "ruff", "pre-commit"]
 api = ["fastapi", "uvicorn"]
 
 [project.scripts]
@@ -68,3 +68,25 @@ ai_avatar = ["prompts/*.md"]  # LLM prompt templates ship with the package
 testpaths = ["tests"]
 addopts = "-q -m 'not integration'"
 markers = ["integration: needs network, credentials or heavy models (skipped by default)"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["models", "gfpgan", "outputs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_llm_fake.py" = ["W291"]  # trailing spaces inside a prompt fixture are the point of the test
+
+[tool.ruff.lint.isort]
+known-first-party = ["ai_avatar"]
+
+[tool.coverage.run]
+source = ["ai_avatar"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

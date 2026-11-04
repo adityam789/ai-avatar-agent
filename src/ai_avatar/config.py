@@ -39,14 +39,14 @@ class _Section(BaseModel):
 class VideoConfig(_Section):
     width: int = 1080
     height: int = 1920
-    crf: int = 20  # x264 quality (Task 08)
-    preset: str = "veryfast"  # x264 speed/size trade-off (Task 08)
+    crf: int = 20  # x264 quality
+    preset: str = "veryfast"  # x264 speed/size trade-off
 
 
 class AvatarConfig(_Section):
     image: Path
     height_ratio: float = 0.55
-    # SadTalker options (Task 08)
+    # SadTalker options
     size: Literal[256, 512] = 256
     enhancer: Literal["none", "gfpgan"] = "none"
     pose_style: int = 0
@@ -61,7 +61,7 @@ class BackgroundConfig(_Section):
 
 
 class CaptionsConfig(_Section):
-    enabled: bool = False  # burned-in captions (optional stretch in Task 08)
+    enabled: bool = False  # burned-in captions (not implemented yet)
 
 
 class TTSConfig(_Section):
@@ -69,11 +69,11 @@ class TTSConfig(_Section):
     voice: str = "Ana Florence"
     language: str = "en"
     device: Literal["auto", "cpu", "cuda", "mps"] = "auto"
-    speaker_wav: Path | None = None  # reference clip for voice cloning instead of ``voice`` (Task 08)
+    speaker_wav: Path | None = None  # reference clip for voice cloning instead of ``voice``
 
 
 class LLMConfig(_Section):
-    """Any OpenAI-compatible chat-completions endpoint; ``models`` are tried in order (Task 07)."""
+    """Any OpenAI-compatible chat-completions endpoint; ``models`` are tried in order."""
 
     base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     models: list[str]
@@ -82,12 +82,12 @@ class LLMConfig(_Section):
 
 
 class ScriptConfig(_Section):
-    target_seconds: int = 18  # narration length; ~2.5 words per second (Task 07)
+    target_seconds: int = 18  # narration length; ~2.5 words per second
     tone: str = "factual, concise, engaging"
 
 
 class ResearchConfig(_Section):
-    """Research sources are optional and fail soft (Task 06)."""
+    """Research sources are optional and fail soft."""
 
     collectors: list[Literal["rss", "web_search", "reddit"]] = ["rss", "web_search", "reddit"]
     search_provider: Literal["duckduckgo", "google_cse", "static"] = "duckduckgo"

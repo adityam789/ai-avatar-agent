@@ -35,7 +35,8 @@ def check_environment(cfg: Config) -> list[Check]:
     """Static checks: binaries, input files, model checkpoints, env var names.
 
     With ``cfg.offline`` the checkpoints and API keys are reported but not required (the fakes need
-    neither); ffmpeg, ffprobe, the avatar image and the background loop still are.
+    neither); ffmpeg and ffprobe still are, and so are the avatar image and background loop for the
+    stages that read them (the CLI dry run decides which stages those are).
     """
     checks = [
         Check("ffmpeg", shutil.which("ffmpeg") is not None, shutil.which("ffmpeg") or "not on PATH"),
@@ -101,7 +102,12 @@ def check_runtime() -> list[Check]:
             checks.append(Check("torch", False, f"installed but fails to import: {type(exc).__name__}: {exc}", False))
     tts_installed = importlib.util.find_spec("TTS") is not None
     checks.append(
-        Check("TTS package", tts_installed, "installed" if tts_installed else "not installed: pip install -e '.[tts]'", False)
+        Check(
+            "TTS package",
+            tts_installed,
+            "installed" if tts_installed else "not installed: pip install -e '.[tts]'",
+            False,
+        )
     )
     cached = next((p for p in _xtts_cache_candidates() if p.is_dir()), None)
     checks.append(
@@ -113,5 +119,12 @@ def check_runtime() -> list[Check]:
         )
     )
     praw_installed = importlib.util.find_spec("praw") is not None
-    checks.append(Check("praw (Reddit)", praw_installed, "installed" if praw_installed else "optional: pip install -e '.[reddit]'", False))
+    checks.append(
+        Check(
+            "praw (Reddit)",
+            praw_installed,
+            "installed" if praw_installed else "optional: pip install -e '.[reddit]'",
+            False,
+        )
+    )
     return checks
