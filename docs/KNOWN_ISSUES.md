@@ -4,7 +4,7 @@
 SadTalker's `requirements.txt` pins `numpy==1.23.4`, `scipy==1.10.1`, `librosa==0.9.2`, and the project targets
 `torch==2.1.2` / `torchvision==0.16.2` / `torchaudio==2.1.2`. The `[avatar]` extra in `pyproject.toml` mirrors these.
 They are **not** upgraded blindly. An upgrade would need: re-testing SadTalker on a newer torch/librosa (its
-`src/utils/audio.py` already passes keyword arguments to `librosa.filters.mel`, so that call is likely fine),
+`models/sad_talker/src/utils/audio.py` already passes keyword arguments to `librosa.filters.mel`, so that call is likely fine),
 and a patch for numpy >= 1.24, which removed the `np.float` / `np.int` aliases still used in
 `models/sad_talker/src/face3d/util/my_awing_arch.py` and `.../arcface_torch/eval_ijbc.py` (a change inside the submodule,
 which this effort does not make). The face-alignment/GFPGAN stack would also need re-checking.
