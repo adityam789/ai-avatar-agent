@@ -9,3 +9,27 @@ logs/
 .idea/
 .ipynb_checkpoints/
 gfpgan/
+# Secrets (keep the example)
+.env.*
+!.env.example
+
+# Generated media (demo media lives in docs/assets/)
+*.wav
+*.mp4
+!docs/assets/**/*.mp4
+!assets/loops/placeholder_loop.mp4
+
+# Model weights
+models/**/checkpoints/
+*.pth
+*.safetensors
+
+# Build / tool caches
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.cache/
+
+# Coverage
+.coverage
+htmlcov/

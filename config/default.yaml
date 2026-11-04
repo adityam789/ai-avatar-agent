@@ -1,0 +1,57 @@
+# Default configuration. Relative paths resolve against the project root.
+# Override with `--config FILE` or env vars like AI_AVATAR__tts__device=cpu.
+
+offline: false        # true: fixtures + fake LLM/TTS/avatar (no network, keys or GPU)
+
+video:
+  width: 1080
+  height: 1920
+  crf: 20
+  preset: veryfast
+
+avatar:
+  image: assets/avatars/placeholder.png   # generated placeholder; use a face you have rights to
+  height_ratio: 0.55   # share of the frame height used by the talking head
+  size: 256            # SadTalker face-render size: 256 | 512
+  enhancer: none       # none | gfpgan
+  pose_style: 0
+  expression_scale: 1.0
+  preprocess: full
+  still: true
+
+background:
+  enabled: true
+  loop: assets/loops/placeholder_loop.mp4
+
+captions:
+  enabled: false
+
+tts:
+  voice: Ana Florence
+  language: en
+  device: auto         # auto | cpu | cuda | mps (auto = cuda > mps > cpu; mps runs XTTS on cpu)
+  speaker_wav: null    # optional reference clip for voice cloning
+
+llm:                 # any OpenAI-compatible chat-completions endpoint
+  base_url: https://openrouter.ai/api/v1/chat/completions
+  models:            # tried in order
+    - meta-llama/llama-3.3-70b-instruct:free
+  max_retries: 3
+  timeout_seconds: 120
+
+script:
+  target_seconds: 18
+  tone: factual, concise, engaging
+
+research:
+  collectors: [rss, web_search, reddit]
+  search_provider: duckduckgo   # duckduckgo | google_cse (deprecated) | static
+  timeout_seconds: 10
+  cache_dir: .cache/research
+  cache_ttl_hours: 24
+  fixtures_dir: fixtures/research
+  max_snippet_chars: 6000
+
+paths:
+  outputs_dir: outputs
+  sadtalker_dir: models/sad_talker

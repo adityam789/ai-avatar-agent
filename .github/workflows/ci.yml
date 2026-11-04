@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4  # no submodules needed: tests never touch SadTalker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install ffmpeg (used by the offline fakes and compose tests)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install package with dev extras
+        run: pip install -e ".[dev,api]"
+      - name: Lint
+        run: ruff check .
+      - name: Format check
+        run: ruff format --check .
+      - name: Tests
+        run: pytest --cov=ai_avatar --cov-report=term-missing

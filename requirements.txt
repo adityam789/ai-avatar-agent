@@ -1,25 +1,6 @@
-fastapi
-uvicorn
-pydantic
-torch==2.1.2 
-torchaudio==2.1.2 
-torchvision==0.16.2
-TTS
-numpy
-opencv-python
-ffmpeg-python
-transformers==4.36.2 
-tokenizers==0.15.2
-scipy
-imageio
-imageio-ffmpeg
-librosa
-tqdm
-face-alignment
-scikit-image
-praw
-feedparser
-faiss-cpu 
-sentence-transformers
-python-dotenv
-praw
+# Convenience shim; the canonical dependency list is pyproject.toml.
+# Heavy extras are NOT included because `tts` and `avatar` currently cannot share one
+# environment (see docs/KNOWN_ISSUES.md). Install them per environment, e.g.:
+#   pip install -e ".[tts]"      # TTS venv
+#   pip install -e ".[avatar]"   # SadTalker venv
+-e .[reddit]

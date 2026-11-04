@@ -1,0 +1,4 @@
+# Known historical finding: a Reddit client secret committed in 17602a7 (app/agents/research/test_research.py).
+# It was rotated by the owner on 2026-11-03 and removed from the tree; history was deliberately not rewritten
+# (see docs/tasks/01-security-hygiene.md and docs/tasks/OWNER_QUESTIONS.md).
+17602a710d94e1989b2f1b365fe2c2106929e68a:app/agents/research/test_research.py:generic-api-key:15

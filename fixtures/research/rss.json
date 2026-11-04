@@ -1,0 +1,12 @@
+[
+  {
+    "title": "Talking-head models turn a single photo into a speaking video",
+    "text": "Audio-driven talking-head systems predict 3D face motion coefficients from speech and render them onto one still portrait. Recent open-source releases run on a consumer GPU in a few seconds per clip.",
+    "url": "https://example.com/news/talking-head-single-photo"
+  },
+  {
+    "title": "Open text-to-speech models can now clone a voice from a few seconds of audio",
+    "text": "Multilingual neural speech synthesizers condition on a short reference recording to reproduce a speaker's timbre. Several of the strongest open models ship under non-commercial licenses.",
+    "url": "https://example.com/news/open-tts-voice-cloning"
+  }
+]
