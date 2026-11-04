@@ -52,7 +52,7 @@ outputs/<YYYYmmdd-HHMMSS>-<topic-slug>/
 * a stage is skipped when its artifact — or any *later* stage's artifact — already exists;
 * `--from-stage S` forces `S` and everything after it; `--only-stage S` re-runs just `S`;
 * `--script-file` / `--audio` copy your file in as `script.txt` / `audio.wav`, which makes earlier stages unnecessary and discards later artifacts;
-* re-running a stage deletes its old output and everything derived from it first, and a failed or interrupted stage removes its partial
+* re-running a stage (via `--from-stage`, an override or a plain resume) deletes its old output and everything derived from it first (`--only-stage` leaves later artifacts in place and logs that they are now stale), and a failed or interrupted stage removes its partial
   artifact, so `--resume` never trusts a half-written file;
 * an impossible plan (missing input, wrong topic, corrupt `run.json`, override that a forced stage would overwrite) fails **before** anything is touched.
 
@@ -73,9 +73,9 @@ ffmpeg). ffmpeg itself is always real. This is what the tests and the README dem
 
 ## Extension points
 * **New collector:** subclass `SourceCollector` (`research/collectors/base.py`), implement `collect(topic) -> list[RawSnippet]`, then add its name to
-  `KNOWN_COLLECTORS` and `build_collectors` in `research/collectors/__init__.py` and to the `ResearchConfig.collectors` `Literal` in `config.py`. Failures are isolated by `safe_collect`; you do not
+  `KNOWN_COLLECTORS` and `build_collectors` in `research/collectors/__init__.py` and to the `ResearchConfig.collectors` `Literal` in `config.py`; offline mode also needs `fixtures/research/<name>.json`. Failures are isolated by `safe_collect`; you do not
   need to catch exceptions.
-* **New search provider:** implement `SearchProvider.search(query, n) -> list[SearchResult]` in `research/collectors/search_providers.py`, return it
+* **New search provider:** implement `SearchProvider.search(query, n) -> list[SearchResult]` (with a `name` attribute) in `research/collectors/search_providers.py`, return it
   from `_search_provider` in `research/collectors/__init__.py` and add its name to the `ResearchConfig.search_provider` `Literal`.
 * **New stage:** add a `Stage(name, artifact, fn, error, requires=…)` to `pipeline.DEFAULT_STAGES`; `fn(ctx)` reads `ctx.path(...)` files and writes its
   artifact. Planning, resume, invalidation and error wrapping come for free.
@@ -86,4 +86,4 @@ ffmpeg). ffmpeg itself is always real. This is what the tests and the README dem
 ## Dependency layout
 Core install is light (`requests`, `pyyaml`, `python-dotenv`, `feedparser`, `pydantic`). Heavy pieces are optional extras and are imported lazily, so
 `ai-avatar --help`, `doctor`, the tests and the offline demo need no torch: `[tts]` (coqui-tts), `[avatar]` (SadTalker's pinned stack), `[search]`
-(ddgs), `[reddit]` (praw), `[api]`, `[dev]`. `[tts]` and `[avatar]` cannot share one environment — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+(ddgs), `[reddit]` (praw), `[dev]` (`[api]` is reserved for the optional FastAPI task and has no code behind it yet). `[tts]` and `[avatar]` cannot share one environment — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).

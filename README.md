@@ -11,7 +11,7 @@ Give it a topic; get a vertical short-form video: **research → LLM script → 
 *What you are seeing:* the output of the **offline demo mode** (`make demo`) — a placeholder avatar and background, a silent
 "fake" voice and a canned script, because the offline mode swaps every external service for a deterministic fake. It proves the pipeline, the
 compositing and the run-directory layout end to end on a laptop without a GPU, network or API keys. A real run uses a talking-head model (SadTalker),
-a neural voice (Coqui XTTS v2) and an LLM. Full-quality MP4: [docs/assets/demo.mp4](docs/assets/demo.mp4).
+a neural voice (Coqui XTTS v2) and an LLM. Downscaled 540×960 MP4: [docs/assets/demo.mp4](docs/assets/demo.mp4).
 
 ## Project status
 
@@ -20,9 +20,9 @@ a neural voice (Coqui XTTS v2) and an LLM. Full-quality MP4: [docs/assets/demo.m
 deprecated provider; DuckDuckGo is the default), and the Reddit Data API now requires approval (the Reddit collector is optional). OpenRouter's free models rotate and
 throttle without notice. **Offline demo mode works with no keys.**
 
-What has and has not been verified: the test suite (400+ tests, 97 % branch coverage, no GPU/network needed) and the offline pipeline with real ffmpeg are
-exercised by the test suite (the CI workflow is included; it has not been run on GitHub yet). The real XTTS and SadTalker stages, live web search and live LLM calls are covered by mocked tests only — they were last run on an
-Apple-Silicon Mac before this cleanup and have not been re-run end to end since.
+What has and has not been verified: the test suite (400+ tests, 97 % branch coverage, no GPU/network needed) exercises the offline pipeline with real ffmpeg
+(the CI workflow is included; it has not been run on GitHub yet). The real XTTS and SadTalker stages, live web search and live LLM calls are covered by mocked tests only:
+the author reports running them on an Apple-Silicon Mac before this cleanup, but this cleanup did **not** re-run them end to end.
 
 ## How it works
 
@@ -36,7 +36,7 @@ flowchart LR
     C --> F([final.mp4 1080×1920])
 ```
 
-* **Research** — three optional sources (RSS feeds, a web-search provider, Reddit) run in parallel threads with a hard timeout each; a dead source is logged and skipped.
+* **Research** — three optional sources (RSS feeds, a web-search provider, Reddit) run one after another, each in its own thread under a hard wall-clock timeout; a dead source is logged and skipped.
   Snippets are de-duplicated, truncated to a budget and distilled into 1–8 facts by the LLM (strict JSON with salvage for chatty replies). Results are cached on disk for 24 h.
 * **Script** — the LLM writes a ~18 s narration from the facts (prompt template in `src/ai_avatar/prompts/script.md`). The result is word-counted (±25 % of 2.5 words/s, one corrective retry, then trimmed at a sentence boundary) and sanitised for speech (no markdown, emoji or stage directions).
 * **TTS** — Coqui XTTS v2 (lazy-loaded; device `auto` = CUDA > MPS > CPU, MPS runs on CPU because XTTS is unreliable there). Optional voice cloning from a reference clip. Output is verified (exists, duration > 0).
@@ -47,7 +47,7 @@ Each stage writes one file into `outputs/<timestamp>-<topic>/`, so runs are insp
 
 ## Quickstart
 
-Prerequisites: Python 3.10 (3.11 also works for everything except the real SadTalker stack), `ffmpeg`/`ffprobe`, git.
+Prerequisites: Python 3.10 (the offline demo and test suite also pass on 3.11; the real SadTalker stack is pinned for 3.10 only), `ffmpeg`/`ffprobe`, git.
 
 ```bash
 git clone --recurse-submodules https://github.com/adityam789/ai-avatar-agent.git
@@ -88,9 +88,12 @@ Use your own face image and loop: `--avatar-image me.png --loop clip.mp4` (see *
 | `--resume DIR` / `--from-stage S` / `--only-stage S` | continue or re-run part of a run |
 | `--script-file F` / `--audio WAV` | supply your own script or audio, skipping those stages |
 | `--no-background` | output the avatar video alone |
+| `--device auto\|cpu\|cuda\|mps` | TTS device (default from config) |
+| `--seed N` | seed Python/numpy/torch RNGs |
+| `--config FILE`, `-v`, `-q` | extra YAML overrides; debug logging + tracebacks; quiet |
 | `ai-avatar research TOPIC` / `script TOPIC` | run just the first stages and print the result |
 
-`ai-avatar --help` lists everything. Exit codes: 0 ok, 1 expected failure (message on stderr, traceback only with `-v`), 2 usage, 70 unexpected, 130 Ctrl-C.
+`ai-avatar --help` lists the commands; `ai-avatar run --help` lists every flag. Exit codes: 0 ok, 1 expected failure (message on stderr, traceback only with `-v`), 2 usage, 70 unexpected, 130 Ctrl-C.
 
 ### Configuration
 
@@ -125,7 +128,8 @@ src/ai_avatar/
   research/                collectors/, aggregator, cache, agent
   llm/                     client (retries, fallback), fake, json_utils
   stages/                  script, tts, avatar, compose, fakes
-  redact.py  errors.py  logging_setup.py
+  redact.py  errors.py  logging_setup.py   prompts/script.md  (LLM prompt template)
+run.py                     back-compat shim for `python run.py`
 tests/                     pytest, 400+ tests, network guard in conftest.py
 docs/                      architecture.md, KNOWN_ISSUES.md, RESUME_BULLETS.md, tasks/ (the cleanup work log)
 models/sad_talker/         git submodule (fork of OpenTalker/SadTalker) — untouched
@@ -137,9 +141,9 @@ assets/                    generated placeholder avatar + background loop
 * **Staged pipeline with file artifacts** instead of in-memory objects: inspectable, resumable, and each stage can run in a different environment (which is what the TTS/SadTalker dependency clash requires).
 * **One planner for real runs and `--dry-run`**, validated up front, so the dry run cannot disagree with a real run and an impossible request changes nothing on disk.
 * **Fail-soft collectors with wall-clock timeouts**; only "no research at all" is an error. Upstream APIs die (two already did), the project should not.
-* **Pluggable providers** behind small protocols (`SourceCollector`, `SearchProvider`, `build_llm`) — Google CSE → DuckDuckGo was a config change.
+* **Pluggable providers** behind small interfaces (`SourceCollector` ABC, `SearchProvider` protocol, `build_llm`) — Google CSE → DuckDuckGo was a config change.
 * **Fakes for every heavy dependency** (LLM, TTS, avatar, search fixtures) so CI exercises the real pipeline code and real ffmpeg with no GPU, network or secrets.
-* **Lazy imports** — `--help`, `doctor`, tests and the offline demo never import torch or TTS.
+* **Lazy imports** — `--help`, tests and the offline demo do not require torch or TTS (`doctor` only imports torch if it happens to be installed, to report the device).
 * **Secrets hygiene** — `.env` only; `redact.scrub()` on everything derived from exceptions, a logging filter for third-party loggers, `run.json` never contains env values.
 * **The submodule is never edited**: the wrapper works around SadTalker's CWD/`sys.argv` assumptions instead of forking behaviour.
 
