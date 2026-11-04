@@ -10,7 +10,7 @@
 | 06 Research robustness | done | 136151e (merge of b5ddadc, e181491, e15695a) | Fail-soft collectors w/ wall-clock timeouts, DDG default, disk cache, offline fixtures, JSON salvage. Review: R1 FAIL (timeouts, JSON salvage) -> R2 PASS + 4 residual fixes |
 | 07 LLM + script | done | 85e55b2 (merge) + 5bf8812 + 54f9ba8 | Retry/backoff/fallback client, FakeLLM, word-budgeted sanitized script. Review: R1 FAIL (8 defects) -> R2 (5 more) -> R3 PASS |
 | 08 TTS / avatar / compose | done | merge of 65cd7ae + 40db6b5, plus range fix | Lazy XTTS + device logic, SadTalker wrapper (no submodule edits), ffmpeg composer, FakeTTS/FakeAvatar. Offline e2e `ai-avatar run OpenAI --offline` verified (1080x1920, 8.7 s). Review: R1 no blockers/7 defects -> R2 PASS. Captions skipped. Real XTTS/SadTalker runs NOT verified |
-| 09 Tests & CI | pending | - | |
-| 10 Docs | pending | - | |
-| 11 Cleanup & release | pending | - | |
+| 09 Tests & CI | done | 3ed5672 | ruff config + format, conftest network guard, CI (3.10/3.11), pre-commit, Makefile; 401 tests ~8 s, 97% branch cov; py3.11 verified locally. CI NOT run on GitHub. Review: PASS (fresh-clone w/ empty submodule verified) |
+| 10 Docs | done | dfd1b90 | README, architecture, KNOWN_ISSUES, RESUME_BULLETS, CONTRIBUTING. LICENSE not created (owner). Doc fact-check review: see below |
+| 11 Cleanup & release | done | 89e3dcc | Tracked size 19 MB -> 1.4 MB (files kept on disk, 18 MB clip still in history), generated placeholders as defaults, CHANGELOG, .gitattributes. Tag/push commands for owner |
 | 12 Optional API | pending | - | |

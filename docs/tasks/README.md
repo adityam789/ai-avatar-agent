@@ -11,9 +11,9 @@ Mark a task done by checking its box here and committing.
 - [x] 06 — Research agent robustness + pluggable search (`06-research-robustness.md`)
 - [x] 07 — LLM client + script agent (`07-llm-and-script.md`)
 - [x] 08 — TTS, avatar, composer cleanup (`08-tts-avatar-composer.md`)
-- [ ] 09 — Tests, lint, CI (`09-tests-ci.md`)
-- [ ] 10 — Docs: README, architecture, status (`10-docs-readme.md`)
-- [ ] 11 — Repo cleanup & release (`11-repo-cleanup-release.md`)
+- [x] 09 — Tests, lint, CI (`09-tests-ci.md`)
+- [x] 10 — Docs: README, architecture, status (`10-docs-readme.md`)
+- [x] 11 — Repo cleanup & release (`11-repo-cleanup-release.md`)
 - [ ] 12 — (Optional stretch) FastAPI service (`12-optional-api.md`)
 
 ## Dependencies between tasks
