@@ -291,6 +291,11 @@ def planned_stages(
 # --- public API ---
 
 
+def new_run_dir(topic: str, cfg: Config) -> Path:
+    """Create and return a fresh ``outputs/<timestamp>-<slug>`` directory for ``topic``."""
+    return _make_run_dir(cfg.outputs_dir, datetime.now().strftime("%Y%m%d-%H%M%S"), slugify(topic))
+
+
 def run(
     topic: str,
     cfg: Config | None = None,
@@ -332,7 +337,7 @@ def run(
         previous = _read_run_json(run_dir)
     else:
         previous = {}
-        run_dir = _make_run_dir(cfg.outputs_dir, datetime.now().strftime("%Y%m%d-%H%M%S"), slugify(topic))
+        run_dir = new_run_dir(topic, cfg)
     ctx = RunContext(topic=topic, cfg=cfg, run_dir=run_dir, run_id=run_dir.name)
     stage_records = previous.get("stages", {})
 

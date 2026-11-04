@@ -13,4 +13,4 @@
 | 09 Tests & CI | done | 3ed5672 | ruff config + format, conftest network guard, CI (3.10/3.11), pre-commit, Makefile; 401 tests ~8 s, 97% branch cov; py3.11 verified locally. CI NOT run on GitHub. Review: PASS (fresh-clone w/ empty submodule verified) |
 | 10 Docs | done | dfd1b90 | README, architecture, KNOWN_ISSUES, RESUME_BULLETS, CONTRIBUTING. LICENSE not created (owner). Doc fact-check review: see below |
 | 11 Cleanup & release | done | 89e3dcc | Tracked size 19 MB -> 1.4 MB (files kept on disk, 18 MB clip still in history), generated placeholders as defaults, CHANGELOG, .gitattributes. Tag/push commands for owner |
-| 12 Optional API | pending | - | |
+| 12 Optional API | done | see git log (feat: optional FastAPI) | `ai-avatar serve`, jobs API, 12 tests, verified over real HTTP. NO independent review (optional stretch, budget) |

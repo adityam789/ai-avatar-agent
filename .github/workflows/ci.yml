@@ -21,7 +21,7 @@ jobs:
       - name: Install ffmpeg (used by the offline fakes and compose tests)
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install package with dev extras
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,api]"
       - name: Lint
         run: ruff check .
       - name: Format check

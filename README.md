@@ -118,12 +118,25 @@ Secrets only ever come from the environment / `.env` (see [`.env.example`](.env.
 | `research.cache_ttl_hours` | 24 | disk cache lifetime (`.cache/research`) |
 | `paths.outputs_dir` | `outputs` | where run directories go |
 
+### Optional HTTP API
+
+```bash
+pip install -e ".[api]"
+ai-avatar serve                       # http://127.0.0.1:8000 (localhost only; no authentication)
+curl -X POST localhost:8000/jobs -H 'content-type: application/json' -d '{"topic": "OpenAI", "offline": true}'
+curl localhost:8000/jobs/<id>         # status + per-stage timings; failures carry a scrubbed error
+curl -o out.mp4 localhost:8000/jobs/<id>/video
+```
+
+Jobs run one at a time in a background worker and are kept **in memory** (they vanish on restart; the files stay in `outputs/`). It is a demo wrapper, not a production service.
+
 ## Project layout
 
 ```
 config/default.yaml        all defaults            fixtures/research/   canned snippets for offline mode
 src/ai_avatar/
   cli.py  __main__.py      argparse CLI            pipeline.py          planner + resumable runner
+  api.py                   optional FastAPI wrapper (`ai-avatar serve`)
   config.py                pydantic config         checks.py            doctor / dry-run checks
   research/                collectors/, aggregator, cache, agent
   llm/                     client (retries, fallback), fake, json_utils
@@ -152,7 +165,7 @@ assets/                    generated placeholder avatar + background loop
 * Real-hardware paths are mock-tested only (see *Project status*); SadTalker has no MPS support and no output path return value.
 * Free OpenRouter models are unreliable — configure several or point `llm.base_url` at another provider.
 * Captions (burned-in subtitles) are not implemented; the pipeline would need to pass the script to the compose stage.
-* Next upgrades if revived: a newer talking-head model (the SadTalker pins force an old torch), streaming TTS, captions with word timing, Brave/other search providers, a small FastAPI service.
+* Next upgrades if revived: a newer talking-head model (the SadTalker pins force an old torch), streaming TTS, captions with word timing, Brave/other search providers, a production-grade API (the bundled one is an in-memory demo).
 
 ## Licensing and responsible use
 

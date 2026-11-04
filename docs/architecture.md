@@ -86,4 +86,4 @@ ffmpeg). ffmpeg itself is always real. This is what the tests and the README dem
 ## Dependency layout
 Core install is light (`requests`, `pyyaml`, `python-dotenv`, `feedparser`, `pydantic`). Heavy pieces are optional extras and are imported lazily, so
 `ai-avatar --help`, `doctor`, the tests and the offline demo need no torch: `[tts]` (coqui-tts), `[avatar]` (SadTalker's pinned stack), `[search]`
-(ddgs), `[reddit]` (praw), `[dev]` (`[api]` is reserved for the optional FastAPI task and has no code behind it yet). `[tts]` and `[avatar]` cannot share one environment — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+(ddgs), `[reddit]` (praw), `[dev]`, `[api]` (FastAPI wrapper in `api.py`, see the README). `[tts]` and `[avatar]` cannot share one environment — see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).

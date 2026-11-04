@@ -14,7 +14,7 @@ Mark a task done by checking its box here and committing.
 - [x] 09 — Tests, lint, CI (`09-tests-ci.md`)
 - [x] 10 — Docs: README, architecture, status (`10-docs-readme.md`)
 - [x] 11 — Repo cleanup & release (`11-repo-cleanup-release.md`)
-- [ ] 12 — (Optional stretch) FastAPI service (`12-optional-api.md`)
+- [x] 12 — (Optional stretch) FastAPI service (`12-optional-api.md`)
 
 ## Dependencies between tasks
 01 -> everything (do first). 02 -> 03 -> 04 -> 05. 06/07/08 can follow 03 in any order. 09 after 06-08. 10 after 05 and 09. 11 last.

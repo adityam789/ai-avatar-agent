@@ -1,7 +1,7 @@
 .PHONY: install test lint format demo doctor
 
-install:  ## core + dev tools (no torch)
-	pip install -e ".[dev]"
+install:  ## core + dev tools + API (no torch)
+	pip install -e ".[dev,api]"
 
 test:
 	pytest --cov=ai_avatar

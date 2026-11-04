@@ -52,7 +52,7 @@ avatar = [
 reddit = ["praw"]
 # Default web-search provider for the research stage (DuckDuckGo, no API key).
 search = ["ddgs"]
-dev = ["pytest", "pytest-cov", "ruff==0.8.6", "pre-commit"]
+dev = ["pytest", "pytest-cov", "ruff==0.8.6", "pre-commit", "httpx"]  # httpx: FastAPI TestClient
 api = ["fastapi", "uvicorn"]
 
 [project.scripts]

@@ -10,4 +10,5 @@ First tagged release (portfolio clean-up of the original prototype).
 * Lazy XTTS v2 with device resolution, SadTalker wrapper that never edits the submodule, tested ffmpeg composer, `FakeTTS` / `FakeAvatar` for `--offline` mode.
 * Secrets hygiene: `.env.example`, redaction of secrets in logs/errors/`run.json`.
 * 400+ tests (97 % branch coverage), ruff, GitHub Actions workflow (3.10/3.11), pre-commit, Makefile.
+* Optional FastAPI wrapper (`ai-avatar serve`, `[api]` extra): create jobs, poll status/stage timings, download the video.
 * Generated placeholder avatar and background loop replace third-party media.

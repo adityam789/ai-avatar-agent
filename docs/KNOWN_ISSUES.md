@@ -61,4 +61,5 @@ an expected error at the avatar stage), then `--resume` the same directory from 
 ## Other
 * **Collector timeouts** are wall-clock limits implemented with daemon threads: a hung third-party call is abandoned, not killed, and keeps running until it returns.
 * **JSON salvage** for chatty LLM replies repairs trailing commas with a regex; a damaged reply containing `, ]` inside a string could be altered. Pathological input with tens of thousands of `{` is O(n²).
+* **HTTP API** (`ai-avatar serve`): in-memory job store, one job at a time, no authentication — keep it on localhost.
 * **Captions** are not implemented (the compose stage does not receive the script text).

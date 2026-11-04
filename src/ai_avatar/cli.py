@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import importlib
 import json
 import logging
 import random
@@ -84,6 +85,11 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("topic")
         p.add_argument("--offline", action="store_true", help="use fixtures and the fake LLM")
         p.set_defaults(func=func)
+
+    serve = sub.add_parser("serve", parents=[common], help="start the optional HTTP API (needs the 'api' extra)")
+    serve.add_argument("--host", default="127.0.0.1", help="bind address (default: localhost; no auth!)")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.set_defaults(func=cmd_serve)
 
     doctor = sub.add_parser("doctor", parents=[common], help="check this machine's setup (never prints secret values)")
     doctor.set_defaults(func=cmd_doctor)
@@ -243,6 +249,17 @@ def cmd_script(args: argparse.Namespace) -> int:
     script = pipeline.run(args.topic, cfg, resume=research.parent, only_stage="script")
     print(script.read_text())
     log.info("Saved to %s", script)
+    return 0
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    cfg = _load(args)
+    try:
+        api = importlib.import_module("ai_avatar.api")
+    except ImportError as exc:
+        raise ConfigError("The API needs optional dependencies: pip install -e '.[api]'") from exc
+    log.info("Serving on http://%s:%d (in-memory jobs, no auth)", args.host, args.port)
+    api.serve(args.host, args.port, cfg)
     return 0
 
 
